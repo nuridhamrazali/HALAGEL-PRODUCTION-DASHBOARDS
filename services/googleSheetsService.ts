@@ -7,7 +7,7 @@ import { ProductionEntry, OffDay, User } from '../types';
  * 2. IMPORTANT: Your Google Apps Script must be deployed as a "Web App" 
  *    with access set to "Anyone" (including anonymous).
  */
-export const HARDCODED_URL = "https://script.google.com/macros/s/AKfycby89ZKqdlsZilyBVQHUT7DLrvKdmethDA_BnNeLYmEJlvzL0vQdMzQycB9PcTf-DGp_/exec"; // <-- REPLACE THIS WITH YOUR REAL URL
+export const HARDCODED_URL = "https://script.google.com/macros/s/AKfycbxtKlilIeY29korDWL7O31AW39ST4wEL-fiKUC8anox358kTibjVlYC1z-MGxl_FXxbrg/exec"; // <-- REPLACE THIS WITH YOUR REAL URL
 
 const getSheetUrl = () => {
   // 1. Priority: Manual override in current browser's localStorage
