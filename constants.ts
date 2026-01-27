@@ -2,7 +2,7 @@ import { User, ProductionEntry, OffDay, OffDayType } from './types';
 import { getTodayISO, getDbTimestamp } from './utils/dateUtils';
 
 export const CATEGORIES = ['Healthcare', 'Toothpaste', 'Rocksalt', 'Cosmetic'] as const;
-export const PROCESSES = ['Mixing', 'Encapsulation', 'Filling', 'Sorting', 'Packing'] as const;
+export const PROCESSES = ['Mixing', 'Encapsulation', 'Filling', 'Sorting', 'Packing', 'Blister', 'Capsules'] as const;
 export const UNITS = ['KG', 'PCS', 'CARTON', 'BTL', 'BOX', 'PAX', 'TUBE'] as const;
 export const OFF_DAY_TYPES: OffDayType[] = ['Public Holiday', 'Rest Day', 'Off Day'];
 
