@@ -15,10 +15,10 @@ export const DEFAULT_AVATARS = {
 };
 
 export const INITIAL_USERS: User[] = [
-  { id: 'u1', name: 'Admin User', username: 'admin', email: 'admin@nexus.com', role: 'admin', password: 'password123' },
-  { id: 'u2', name: 'Manager User', username: 'manager', email: 'manager@nexus.com', role: 'manager', password: 'password123' },
-  { id: 'u3', name: 'Planner User', username: 'planner', email: 'planner@nexus.com', role: 'planner', password: 'password123' },
-  { id: 'u4', name: 'Operator User', username: 'operator', email: 'operator@nexus.com', role: 'operator', password: 'password123' },
+  { id: 'u1', name: 'Admin User', username: 'admin', email: 'admin@halagel.com', role: 'admin', password: 'password123' },
+  { id: 'u2', name: 'Manager User', username: 'manager', email: 'manager@halagel.com', role: 'manager', password: 'password123' },
+  { id: 'u3', name: 'Planner User', username: 'planner', email: 'planner@halagel.com', role: 'planner', password: 'password123' },
+  { id: 'u4', name: 'Operator User', username: 'operator', email: 'operator@halagel.com', role: 'operator', password: 'password123' },
 ];
 
 export const INITIAL_OFF_DAYS: OffDay[] = [
