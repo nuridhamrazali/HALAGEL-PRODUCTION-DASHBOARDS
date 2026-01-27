@@ -1,3 +1,4 @@
+
 import React, { useMemo, useState } from 'react';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { StorageService } from '../../services/storageService';
@@ -6,7 +7,7 @@ import { PROCESSES } from '../../constants';
 import { 
   ClipboardList, List, Calendar, 
   Download, Pencil, Trash2, Layers,
-  Palmtree, MessageSquare, ArrowUpDown, Clock, CheckCircle, ShieldAlert, Coffee, Ban
+  Palmtree, MessageSquare, ArrowUpDown, Coffee, Ban
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatDisplayDate, getCurrentMonthISO, getWeeklyOffDayType } from '../../utils/dateUtils';
@@ -43,9 +44,10 @@ export const Dashboard: React.FC = () => {
     let selectedMonthPlan = 0;
     let selectedMonthActual = 0;
     const selectedMonthProcessMap = new Map<string, {process: string, Plan: number, Actual: number}>();
-    const validProcesses = ['Toothpaste', 'Rocksalt', 'Cosmetic'].includes(category)
-      ? PROCESSES.filter(p => p !== 'Encapsulation')
-      : [...PROCESSES];
+    
+    const validProcesses = category === 'Healthcare' 
+      ? [...PROCESSES] 
+      : PROCESSES.filter(p => !['Encapsulation', 'Blister', 'Capsules'].includes(p));
 
     validProcesses.forEach(proc => {
       selectedMonthProcessMap.set(proc, { process: proc, Plan: 0, Actual: 0 });
@@ -81,12 +83,10 @@ export const Dashboard: React.FC = () => {
     const filteredEntries = baseData.filter(d => d && d.date && d.date.trim().startsWith(selectedMonth));
     const dates = new Set<string>();
     
-    // 1. Add dates that have production entries
     filteredEntries.forEach(e => {
         if (e.date) dates.add(e.date.trim().substring(0, 10));
     });
     
-    // 2. Add manual off days (holidays etc)
     offDays.forEach(od => {
         if (od.date && od.date.trim().startsWith(selectedMonth)) {
             dates.add(od.date.trim().substring(0, 10));
@@ -113,7 +113,6 @@ export const Dashboard: React.FC = () => {
             });
         }
 
-        // Manual holiday check takes priority
         let offDayInfo = offDays.find(od => od.date && od.date.trim().substring(0, 10) === dateKey);
         
         if (!offDayInfo) {
@@ -181,7 +180,7 @@ export const Dashboard: React.FC = () => {
     <th className="px-8 py-4 cursor-pointer group" onClick={() => handleSort(sortKey)}>
         <div className="flex items-center gap-1">
             <span className={sortConfig?.key === sortKey ? 'text-indigo-600' : ''}>{label}</span>
-            <ArrowUpDown className={`w-3 h-3 transition-opacity ${sortConfig?.key === sortKey ? 'opacity-100' : 'opacity-0 group-hover:opacity-40'}`} />
+            <ArrowUpDown className={`w-3 h-3 transition-opacity ${sortConfig?.key === sortKey ? 'opacity-100' : 'opacity-0 group-hover:opacity-60'}`} />
         </div>
     </th>
   );
@@ -250,7 +249,6 @@ export const Dashboard: React.FC = () => {
                 const [datePart, dayPart] = displayDate.split(' ');
                 const isOff = !!group.offDay;
 
-                // Group-level status summary
                 const allCompleted = group.entries.length > 0 && group.entries.every(e => e.status === 'Completed');
 
                 return (
@@ -307,12 +305,12 @@ export const Dashboard: React.FC = () => {
                                     <tr className="border-b border-gray-50 dark:border-slate-800 text-[9px] font-black text-slate-400 uppercase tracking-widest bg-gray-50/30 dark:bg-slate-900/30">
                                         <SortHeader label="Process" sortKey="process" />
                                         <SortHeader label="Product Name" sortKey="productName" />
-                                        <th className="px-8 py-4 text-right">Plan Qty</th>
-                                        <th className="px-8 py-4 text-right">Actual Qty</th>
+                                        <th className="px-8 py-4 text-right">Plan Data</th>
+                                        <th className="px-8 py-4 text-right">Actual Data</th>
                                         <th className="px-8 py-4 text-center">Efficiency</th>
                                         <th className="px-8 py-4 text-center">Batch No</th>
                                         <th className="px-8 py-4 text-center">Manpower</th>
-                                        {hasPermission(['admin', 'manager', 'planner']) && <th className="px-8 py-4 text-center">Action</th>}
+                                        {hasPermission(['admin', 'manager', 'hod']) && <th className="px-8 py-4 text-center">Action</th>}
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-50 dark:divide-slate-800/30">
@@ -324,15 +322,15 @@ export const Dashboard: React.FC = () => {
                                                     <span className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase bg-indigo-50 dark:bg-indigo-900/30 px-2 py-1 rounded-lg border border-indigo-100 dark:border-indigo-800">{entry.process}</span>
                                                 </td>
                                                 <td className="px-8 py-5">
-                                                    <span className="text-sm font-black text-slate-800 dark:text-white">{entry.productName}</span>
+                                                    <span className="text-sm font-black text-slate-800 dark:text-white uppercase">{entry.productName}</span>
                                                 </td>
                                                 <td className="px-8 py-5 text-right font-black font-mono text-indigo-600/80 dark:text-indigo-400/80 text-sm">
                                                     <div>{(entry.planQuantity || 0).toLocaleString()} <span className="text-[9px] ml-1 opacity-60 font-sans">{entry.unit}</span></div>
-                                                    {entry.planRemark && <div className="flex items-center justify-end gap-1 mt-1"><MessageSquare className="w-3 h-3 text-slate-300" /><span className="text-[9px] font-medium text-slate-400 italic max-w-[150px] truncate">{entry.planRemark}</span></div>}
+                                                    {entry.planRemark && <div className="flex items-center justify-end gap-1 mt-1 opacity-70"><MessageSquare className="w-3 h-3 text-slate-300" /><span className="text-[9px] font-medium text-slate-400 italic max-w-[150px] truncate">{entry.planRemark}</span></div>}
                                                 </td>
                                                 <td className="px-8 py-5 text-right font-black font-mono text-emerald-500 text-sm">
                                                     <div>{(entry.actualQuantity || 0).toLocaleString()} <span className="text-[9px] ml-1 opacity-60 font-sans">{entry.unit}</span></div>
-                                                    {entry.actualRemark && <div className="flex items-center justify-end gap-1 mt-1"><MessageSquare className="w-3 h-3 text-emerald-200" /><span className="text-[9px] font-medium text-emerald-400/80 italic max-w-[150px] truncate">{entry.actualRemark}</span></div>}
+                                                    {entry.actualRemark && <div className="flex items-center justify-end gap-1 mt-1 opacity-70"><MessageSquare className="w-3 h-3 text-emerald-200" /><span className="text-[9px] font-medium text-emerald-400/80 italic max-w-[150px] truncate">{entry.actualRemark}</span></div>}
                                                 </td>
                                                 <td className="px-8 py-5 text-center">
                                                     <span className={`text-sm font-black font-mono ${eff >= 100 ? 'text-emerald-500' : eff >= 75 ? 'text-amber-500' : 'text-rose-500'}`}>{(eff || 0).toFixed(0)}%</span>
@@ -341,9 +339,9 @@ export const Dashboard: React.FC = () => {
                                                     <span className="text-[11px] font-bold text-slate-400 uppercase font-mono">{entry.batchNo || '-'}</span>
                                                 </td>
                                                 <td className="px-8 py-5 text-center">
-                                                    <span className="text-base font-black text-slate-800 dark:text-white font-mono">{Number(entry.manpower || 0)}</span>
+                                                    <span className="text-base font-black text-slate-800 dark:text-white font-mono">{(entry.manpower || 0).toFixed(2)}</span>
                                                 </td>
-                                                {hasPermission(['admin', 'manager', 'planner']) && (
+                                                {hasPermission(['admin', 'manager', 'hod']) && (
                                                   <td className="px-8 py-5 text-center">
                                                       <div className="flex items-center justify-center gap-2">
                                                           <button onClick={() => handleEdit(entry)} className="p-1.5 text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition"><Pencil className="w-4 h-4" /></button>
