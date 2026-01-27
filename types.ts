@@ -1,4 +1,4 @@
-export type Role = 'admin' | 'manager' | 'planner' | 'operator';
+export type Role = 'admin' | 'manager' | 'hod' | 'planner' | 'operator';
 
 export interface User {
   id: string;
@@ -13,7 +13,7 @@ export interface User {
 
 export type Category = 'Healthcare' | 'Toothpaste' | 'Rocksalt' | 'Cosmetic';
 
-export type ProcessType = 'Mixing' | 'Encapsulation' | 'Filling' | 'Sorting' | 'Packing';
+export type ProcessType = 'Mixing' | 'Encapsulation' | 'Filling' | 'Sorting' | 'Packing' | 'Blister' | 'Capsules';
 
 export type UnitType = 'KG' | 'PCS' | 'CARTON' | 'BTL' | 'BOX' | 'PAX' | 'TUBE';
 
