@@ -25,7 +25,7 @@ export const InputModal: React.FC<InputModalProps> = ({ onClose, editEntry }) =>
   const [productName, setProductName] = useState('');
   const [quantity, setQuantity] = useState('');
   const [unit, setUnit] = useState<UnitType>('KG');
-  const [manpower, setManpower] = useState('0');
+  const [manpower, setManpower] = useState('0.00');
   const [batchNo, setBatchNo] = useState('');
   const [planRemark, setPlanRemark] = useState('');
   const [actualRemark, setActualRemark] = useState('');
@@ -72,7 +72,7 @@ export const InputModal: React.FC<InputModalProps> = ({ onClose, editEntry }) =>
         setQuantity(editEntry.planQuantity.toString());
       }
       
-      setManpower(editEntry.manpower ? Number(editEntry.manpower).toString() : '0');
+      setManpower(editEntry.manpower ? Number(editEntry.manpower).toFixed(2) : '0.00');
       setBatchNo(editEntry.batchNo || '');
       setPlanRemark(editEntry.planRemark || '');
       setActualRemark(editEntry.actualRemark || '');
@@ -312,7 +312,7 @@ export const InputModal: React.FC<InputModalProps> = ({ onClose, editEntry }) =>
                                   </div>
                                   <div className="col-span-2">
                                     <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Manpower Used</label>
-                                    <input type="number" required step="any" value={manpower} onChange={e => setManpower(e.target.value)} className={inputClasses} />
+                                    <input type="number" required step="0.01" value={manpower} onChange={e => setManpower(e.target.value)} className={inputClasses} />
                                   </div>
                                 </div>
                                 <div>
