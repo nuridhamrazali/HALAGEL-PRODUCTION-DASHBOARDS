@@ -6,6 +6,7 @@ import { X, Trash2, CalendarX, Tag } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { OFF_DAY_TYPES } from '../../constants';
+import { formatDateToDMY } from '../../utils/dateUtils';
 
 export const OffDayModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const { user } = useAuth();
@@ -140,7 +141,7 @@ export const OffDayModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                                   {od.type}
                                 </span>
                               </div>
-                              <p className="text-[10px] font-mono text-slate-400 mt-0.5 font-bold">{od.date}</p>
+                              <p className="text-[10px] font-mono text-slate-400 mt-0.5 font-bold">{formatDateToDMY(od.date)}</p>
                           </div>
                       </div>
                       <button onClick={() => handleRemove(od.id)} className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-xl transition-all">
