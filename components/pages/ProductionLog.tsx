@@ -6,7 +6,7 @@ import { useDashboard } from '../../contexts/DashboardContext';
 import { CATEGORIES, PROCESSES } from '../../constants';
 import { ProductionEntry, ProductionStatus } from '../../types';
 import { Download, Filter, XCircle, Palmtree, MessageSquare, ArrowUpDown, Clock, CheckCircle, Coffee, Ban } from 'lucide-react';
-import { getTodayISO, getWeeklyOffDayType } from '../../utils/dateUtils';
+import { getTodayISO, getWeeklyOffDayType, formatDateToDMY } from '../../utils/dateUtils';
 
 type SortConfig = {
     key: keyof ProductionEntry;
@@ -85,7 +85,7 @@ export const ProductionLog: React.FC = () => {
     const headers = ["Date", "Category", "Process", "Product", "Plan", "Actual", "Unit", "Efficiency %", "Batch No", "Manpower", "Status", "Plan Remark", "Actual Remark"];
     const rows = filteredData.map(d => [
         d.date, d.category, d.process, `"${d.productName}"`, d.planQuantity || 0, d.actualQuantity || 0, d.unit || 'KG',
-        calculateEfficiency(d.actualQuantity || 0, d.planQuantity || 0), d.batchNo || '', Number(d.manpower || 0), d.status || 'In Progress', 
+        calculateEfficiency(d.actualQuantity || 0, d.planQuantity || 0), d.batchNo || '', (d.manpower || 0).toFixed(2), d.status || 'In Progress', 
         `"${(d.planRemark || '').replace(/"/g, '""')}"`, `"${(d.actualRemark || '').replace(/"/g, '""')}"`
     ]);
     const filename = `production_log_${getTodayISO()}.csv`;
@@ -171,8 +171,8 @@ export const ProductionLog: React.FC = () => {
                     <SortHeader label="Date / Status" sortKey="date" />
                     <SortHeader label="Dept" sortKey="category" align="center" />
                     <SortHeader label="Product" sortKey="productName" />
-                    <th className="px-8 py-5 text-right font-black uppercase text-[10px] tracking-widest">Plan</th>
-                    <th className="px-8 py-5 text-right font-black uppercase text-[10px] tracking-widest">Actual</th>
+                    <th className="px-8 py-5 text-right font-black uppercase text-[10px] tracking-widest">Plan Data</th>
+                    <th className="px-8 py-5 text-right font-black uppercase text-[10px] tracking-widest">Actual Data</th>
                     <th className="px-8 py-5 text-center font-black uppercase text-[10px] tracking-widest">Unit</th>
                     <th className="px-8 py-5 text-right font-black uppercase text-[10px] tracking-widest">Eff. %</th>
                     <SortHeader label="Batch No" sortKey="batchNo" align="center" />
@@ -189,7 +189,7 @@ export const ProductionLog: React.FC = () => {
                 return (
                     <tr key={entry.id} className={`hover:bg-indigo-50/30 dark:hover:bg-indigo-900/10 transition-colors ${labelType ? 'bg-amber-50/10' : ''}`}>
                     <td className="px-8 py-6">
-                        <div className="font-black text-slate-800 dark:text-white font-mono text-xs mb-1.5">{entry.date}</div>
+                        <div className="font-black text-slate-800 dark:text-white font-mono text-xs mb-1.5">{formatDateToDMY(entry.date)}</div>
                         {labelType ? (
                             <span className={`flex items-center gap-1.5 text-[9px] font-black uppercase ${
                             labelType === 'Public Holiday' ? 'text-rose-500' : 
