@@ -1,10 +1,10 @@
 
-
 import React, { useState } from 'react';
 import { StorageService } from '../../services/storageService';
 import { useAuth } from '../../contexts/AuthContext';
 import { OffDay } from '../../types';
 import { Trash2, Plus } from 'lucide-react';
+import { formatDateToDMY } from '../../utils/dateUtils';
 
 export const OffDays: React.FC = () => {
   const { user } = useAuth();
@@ -21,7 +21,6 @@ export const OffDays: React.FC = () => {
         return;
     }
 
-    // Fix: Added missing 'type' property
     const newOffDay: OffDay = {
         id: Date.now().toString(),
         date: newDate,
@@ -88,12 +87,11 @@ export const OffDays: React.FC = () => {
                     <li key={day.id} className="p-4 flex items-center justify-between hover:bg-gray-50">
                         <div className="flex items-center space-x-4">
                             <div className="bg-red-50 text-red-600 px-3 py-1 rounded-md font-mono text-sm font-bold">
-                                {day.date}
+                                {formatDateToDMY(day.date)}
                             </div>
                             <span className="text-gray-700 font-medium">{day.description}</span>
                         </div>
                         <button 
-                            // Fix: Passing day.id instead of undefined id
                             onClick={() => handleRemove(day.id)}
                             className="text-gray-400 hover:text-red-500 transition-colors"
                         >
