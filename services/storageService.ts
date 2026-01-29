@@ -1,3 +1,4 @@
+
 import { User, ProductionEntry, OffDay, ActivityLog, UnitType, ProductionStatus, OffDayType } from '../types';
 import { INITIAL_USERS, INITIAL_OFF_DAYS, UNITS } from '../constants';
 import { GoogleSheetsService } from './googleSheetsService';
@@ -9,6 +10,7 @@ const KEYS = {
   OFF_DAYS: 'halagel_off_days',
   LOGS: 'halagel_activity_logs',
   CURRENT_USER: 'halagel_current_user_session',
+  LAST_WRITE: 'halagel_last_write_timestamp'
 };
 
 const normalizeUnit = (u: any): UnitType => {
@@ -20,9 +22,7 @@ const normalizeUnit = (u: any): UnitType => {
 
 const normalizeProduction = (data: any): ProductionEntry => {
   if (!data) return {} as ProductionEntry;
-  
   let entry: Partial<ProductionEntry> = {};
-  
   if (Array.isArray(data)) {
     const actualQty = Number(data[6] || 0);
     entry = {
@@ -44,194 +44,128 @@ const normalizeProduction = (data: any): ProductionEntry => {
       status: (data[15] as ProductionStatus) || (actualQty > 0 ? 'Completed' : 'In Progress')
     };
   } else {
-    const actualQty = Number(data.actualQuantity || 0);
     entry = {
       ...data,
       id: String(data.id || Date.now()),
       date: String(data.date || '').split(' ')[0],
-      productName: String(data.productName || 'Unknown'),
       planQuantity: Number(data.planQuantity || 0),
-      actualQuantity: actualQty,
+      actualQuantity: Number(data.actualQuantity || 0),
       unit: normalizeUnit(data.unit),
-      manpower: Number(data.manpower || 0),
-      batchNo: String(data.batchNo || ''),
-      remark: String(data.remark || ''),
-      planRemark: String(data.planRemark || ''),
-      actualRemark: String(data.actualRemark || ''),
-      process: String(data.process || 'Mixing') as any,
-      category: String(data.category || 'Healthcare') as any,
-      status: actualQty > 0 ? 'Completed' : 'In Progress',
       updatedAt: String(data.updatedAt || getDbTimestamp())
     };
   }
   return entry as ProductionEntry;
 };
 
-const normalizeLog = (data: any): ActivityLog => {
-  if (!data) return {} as ActivityLog;
-  if (Array.isArray(data)) {
-    return {
-      id: String(data[0] || Date.now()),
-      timestamp: String(data[1] || getDbTimestamp()),
-      userId: String(data[2] || ''),
-      userName: String(data[3] || 'System'),
-      action: String(data[4] || 'LOG'),
-      details: String(data[5] || '')
-    };
-  }
-  return {
-    ...data,
-    id: String(data.id || Date.now()),
-    timestamp: String(data.timestamp || getDbTimestamp()),
-    userName: String(data.userName || 'Unknown'),
-    details: String(data.details || '')
-  };
+const normalizeUser = (u: any): User => ({
+  id: String(u.id || ''),
+  name: String(u.name || ''),
+  username: String(u.username || ''),
+  role: (u.role || 'operator') as any,
+  password: String(u.password || ''),
+  avatar: String(u.avatar || '')
+});
+
+const updateWriteTimestamp = () => {
+  localStorage.setItem(KEYS.LAST_WRITE, Date.now().toString());
 };
 
-const normalizeOffDay = (data: any): OffDay => {
-  if (!data) return {} as OffDay;
-  if (Array.isArray(data)) {
-    return {
-      id: String(data[0] || Date.now()),
-      date: String(data[1] || '').split(' ')[0],
-      description: String(data[2] || 'Holiday'),
-      createdBy: String(data[3] || 'System'),
-      type: (data[4] as OffDayType) || 'Off Day'
-    };
-  }
-  return {
-    ...data,
-    id: String(data.id || Date.now()),
-    date: String(data.date || '').split(' ')[0],
-    description: String(data.description || 'Holiday'),
-    type: (data.type as OffDayType) || 'Off Day'
-  };
+const isWriteLocked = () => {
+  const lastWrite = parseInt(localStorage.getItem(KEYS.LAST_WRITE) || '0');
+  return (Date.now() - lastWrite) < 10000; // 10 second safety buffer
 };
-
-const init = () => {
-  if (!localStorage.getItem(KEYS.USERS)) {
-    localStorage.setItem(KEYS.USERS, JSON.stringify(INITIAL_USERS));
-  }
-  if (!localStorage.getItem(KEYS.OFF_DAYS)) {
-    localStorage.setItem(KEYS.OFF_DAYS, JSON.stringify(INITIAL_OFF_DAYS));
-  }
-  if (!localStorage.getItem(KEYS.PRODUCTION)) {
-    localStorage.setItem(KEYS.PRODUCTION, JSON.stringify([]));
-  }
-  if (!localStorage.getItem(KEYS.LOGS)) {
-    localStorage.setItem(KEYS.LOGS, JSON.stringify([]));
-  }
-};
-
-init();
 
 export const StorageService = {
   getUsers: (): User[] => {
     try {
-      const data = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
-      return Array.isArray(data) ? data : [];
-    } catch { return []; }
+      const raw = localStorage.getItem(KEYS.USERS);
+      if (!raw) return INITIAL_USERS;
+      const data = JSON.parse(raw);
+      return Array.isArray(data) && data.length > 0 ? data.map(normalizeUser) : INITIAL_USERS;
+    } catch { return INITIAL_USERS; }
   },
-  saveUsers: (users: User[]) => {
+  
+  saveUsers: async (users: User[]) => {
+    updateWriteTimestamp();
     localStorage.setItem(KEYS.USERS, JSON.stringify(users));
-    GoogleSheetsService.saveData('saveUsers', users);
+    return await GoogleSheetsService.saveData('saveUsers', users);
   },
   
   getProductionData: (): ProductionEntry[] => {
     try {
       const data = JSON.parse(localStorage.getItem(KEYS.PRODUCTION) || '[]');
-      return Array.isArray(data) ? data.map(normalizeProduction).filter((p: ProductionEntry) => p.date && p.date.length > 0) : [];
+      return Array.isArray(data) ? data.map(normalizeProduction).filter(p => p.date) : [];
     } catch { return []; }
   },
-  saveProductionData: (data: ProductionEntry[]) => {
-    const cleaned = data.map(normalizeProduction).filter((p: ProductionEntry) => p.date && p.date.length > 0);
+  
+  saveProductionData: async (data: ProductionEntry[]) => {
+    updateWriteTimestamp();
+    const cleaned = data.map(normalizeProduction).filter(p => p.date);
     localStorage.setItem(KEYS.PRODUCTION, JSON.stringify(cleaned));
-    GoogleSheetsService.saveData('saveProduction', cleaned);
+    return await GoogleSheetsService.saveData('saveProduction', cleaned);
   },
 
-  deleteProductionEntry: (id: string): { updatedData: ProductionEntry[], deletedItem: ProductionEntry | null } => {
-    try {
-      const data = StorageService.getProductionData();
-      const targetId = String(id);
-      const targetItem = data.find((p: ProductionEntry) => String(p.id) === targetId) || null;
-      const updatedData = data.filter((p: ProductionEntry) => String(p.id) !== targetId);
-      StorageService.saveProductionData(updatedData);
-      return { updatedData, deletedItem: targetId ? targetItem : null };
-    } catch (err) {
-      console.error("Storage delete error:", err);
-      return { updatedData: StorageService.getProductionData(), deletedItem: null };
-    }
+  deleteProductionEntry: async (id: string): Promise<{ updatedData: ProductionEntry[], deletedItem: ProductionEntry | null }> => {
+    const data = StorageService.getProductionData();
+    const targetItem = data.find(p => String(p.id) === String(id)) || null;
+    const updatedData = data.filter(p => String(p.id) !== String(id));
+    await StorageService.saveProductionData(updatedData);
+    return { updatedData, deletedItem: targetItem };
   },
   
   getOffDays: (): OffDay[] => {
     try {
       const data = JSON.parse(localStorage.getItem(KEYS.OFF_DAYS) || '[]');
-      return Array.isArray(data) ? data.map(normalizeOffDay).filter((od: OffDay) => od.date && od.date.length > 0) : [];
-    } catch { return []; }
+      return Array.isArray(data) ? data : INITIAL_OFF_DAYS;
+    } catch { return INITIAL_OFF_DAYS; }
   },
-  saveOffDays: (days: OffDay[]) => {
-    const cleaned = days.map(normalizeOffDay).filter((od: OffDay) => od.date && od.date.length > 0);
-    localStorage.setItem(KEYS.OFF_DAYS, JSON.stringify(cleaned));
-    GoogleSheetsService.saveData('saveOffDays', cleaned);
+  
+  saveOffDays: async (days: OffDay[]) => {
+    updateWriteTimestamp();
+    localStorage.setItem(KEYS.OFF_DAYS, JSON.stringify(days));
+    return await GoogleSheetsService.saveData('saveOffDays', days);
   },
 
   syncWithSheets: async () => {
-    if (!GoogleSheetsService.isEnabled()) return;
+    if (!GoogleSheetsService.isEnabled() || isWriteLocked()) return;
     
     try {
       const results = await Promise.all([
         GoogleSheetsService.fetchData<any[]>('getProduction'),
         GoogleSheetsService.fetchData<any[]>('getOffDays'),
-        GoogleSheetsService.fetchData<any[]>('getLogs'),
         GoogleSheetsService.fetchData<User[]>('getUsers')
       ]);
 
-      if (results[0] && Array.isArray(results[0])) {
-          const cleaned = results[0].map(normalizeProduction).filter((p: ProductionEntry) => p.date && p.date.length > 0);
-          localStorage.setItem(KEYS.PRODUCTION, JSON.stringify(cleaned));
+      // Only overwrite if cloud data is non-empty and seems valid
+      if (results[0] && Array.isArray(results[0]) && results[0].length > 0) {
+          const localCount = StorageService.getProductionData().length;
+          // If cloud has significantly less data, it might be an outdated read
+          if (results[0].length >= localCount || localCount === 0) {
+            localStorage.setItem(KEYS.PRODUCTION, JSON.stringify(results[0].map(normalizeProduction)));
+          }
       }
       
-      if (results[1] && Array.isArray(results[1])) {
-          const cleaned = results[1].map(normalizeOffDay).filter((od: OffDay) => od.date && od.date.length > 0);
-          localStorage.setItem(KEYS.OFF_DAYS, JSON.stringify(cleaned));
-      }
-
-      if (results[2] && Array.isArray(results[2])) {
-          const cleanedLogs = results[2].map(normalizeLog).filter((l: ActivityLog) => l.timestamp);
-          localStorage.setItem(KEYS.LOGS, JSON.stringify(cleanedLogs));
-      }
-
-      if (results[3] && Array.isArray(results[3])) {
-          localStorage.setItem(KEYS.USERS, JSON.stringify(results[3]));
+      if (results[2] && Array.isArray(results[2]) && results[2].length >= INITIAL_USERS.length) {
+          localStorage.setItem(KEYS.USERS, JSON.stringify(results[2].map(normalizeUser)));
       }
     } catch (err) {
-      console.error("Critical Sync Failure:", err);
-      throw err;
+      console.error("Sync Failure:", err);
     }
   },
   
   getLogs: (): ActivityLog[] => {
     try {
-      const data = JSON.parse(localStorage.getItem(KEYS.LOGS) || '[]');
-      return Array.isArray(data) ? data.map(normalizeLog) : [];
+      return JSON.parse(localStorage.getItem(KEYS.LOGS) || '[]');
     } catch { return []; }
   },
-  addLog: (log: Omit<ActivityLog, 'id' | 'timestamp'>) => {
-    try {
-      const logs = StorageService.getLogs();
-      const newLog: ActivityLog = {
-        ...log,
-        id: Date.now().toString(),
-        timestamp: getDbTimestamp(),
-      };
-      logs.unshift(newLog);
-      if (logs.length > 500) logs.pop(); 
-      
-      localStorage.setItem(KEYS.LOGS, JSON.stringify(logs));
-      GoogleSheetsService.saveData('saveLogs', logs);
-    } catch (err) {
-      console.error("Logging error:", err);
-    }
+  
+  addLog: async (log: Omit<ActivityLog, 'id' | 'timestamp'>) => {
+    const logs = StorageService.getLogs();
+    const newLog = { ...log, id: Date.now().toString(), timestamp: getDbTimestamp() };
+    logs.unshift(newLog);
+    if (logs.length > 500) logs.pop();
+    localStorage.setItem(KEYS.LOGS, JSON.stringify(logs));
+    await GoogleSheetsService.saveData('saveLogs', logs);
   },
 
   getSession: (): User | null => {
@@ -240,6 +174,7 @@ export const StorageService = {
       return session ? JSON.parse(session) : null;
     } catch { return null; }
   },
+  
   setSession: (user: User | null) => {
     if (user) localStorage.setItem(KEYS.CURRENT_USER, JSON.stringify(user));
     else localStorage.removeItem(KEYS.CURRENT_USER);
