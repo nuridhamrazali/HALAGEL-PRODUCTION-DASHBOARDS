@@ -1,5 +1,5 @@
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { StorageService } from '../../services/storageService';
 import { PROCESSES } from '../../constants';
@@ -11,13 +11,14 @@ import {
   Clock,
   CheckCircle2,
   Plus,
-  Info
+  Info,
+  ArrowLeftCircle,
+  ArrowRightCircle
 } from 'lucide-react';
 import { formatDisplayDate, getTodayISO, getWeeklyOffDayType, formatDateToDMY } from '../../utils/dateUtils';
 
 /**
  * UNIFIED PROCESS IDENTITY SYSTEM
- * Every manufacturing stage follows the exact same visual branding structure.
  */
 const PROCESS_COLORS: Record<string, { bg: string, text: string, border: string, tint: string }> = {
   'Mixing': { bg: 'bg-blue-600', text: 'text-blue-700', border: 'border-blue-600', tint: 'bg-blue-50/20' },
@@ -30,9 +31,15 @@ const PROCESS_COLORS: Record<string, { bg: string, text: string, border: string,
 };
 
 export const ProductionCalendar: React.FC = () => {
-  const { category, refreshKey, isDarkMode } = useDashboard();
+  const { category, refreshKey } = useDashboard();
   const [viewType, setViewType] = useState<'month' | 'week'>('month');
   const [baseDate, setBaseDate] = useState(getTodayISO());
+  
+  // Refs for Drag-to-Scroll
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [startX, setStartX] = useState(0);
+  const [scrollLeft, setScrollLeft] = useState(0);
 
   const { productionData, offDays } = useMemo(() => {
     return {
@@ -41,7 +48,34 @@ export const ProductionCalendar: React.FC = () => {
     };
   }, [refreshKey]);
 
-  // Generate columns based on viewType: Day-by-Day (Month) or Week-by-Week (4-Week)
+  // DRAG-TO-SCROLL LOGIC
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (!scrollContainerRef.current) return;
+    setIsDragging(true);
+    setStartX(e.pageX - scrollContainerRef.current.offsetLeft);
+    setScrollLeft(scrollContainerRef.current.scrollLeft);
+  };
+
+  const handleMouseLeave = () => setIsDragging(false);
+  const handleMouseUp = () => setIsDragging(false);
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging || !scrollContainerRef.current) return;
+    e.preventDefault();
+    const x = e.pageX - scrollContainerRef.current.offsetLeft;
+    const walk = (x - startX) * 2; // Scroll multiplier
+    scrollContainerRef.current.scrollLeft = scrollLeft - walk;
+  };
+
+  const scrollMatrix = (direction: 'left' | 'right') => {
+    if (!scrollContainerRef.current) return;
+    const offset = direction === 'left' ? -400 : 400;
+    scrollContainerRef.current.scrollTo({
+      left: scrollContainerRef.current.scrollLeft + offset,
+      behavior: 'smooth'
+    });
+  };
+
   const columns = useMemo(() => {
     const cols = [];
     const curr = new Date(baseDate);
@@ -64,9 +98,8 @@ export const ProductionCalendar: React.FC = () => {
         });
       }
     } else {
-      // 4-WEEK STRATEGIC HORIZON
       const day = curr.getDay();
-      const diff = curr.getDate() - day; // Adjust to start of current week (Sunday)
+      const diff = curr.getDate() - day;
       const startOfFirstWeek = new Date(curr.setDate(diff));
 
       for (let i = 0; i < 4; i++) {
@@ -111,7 +144,7 @@ export const ProductionCalendar: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      {/* Matrix Controls */}
+      {/* Header UI */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
         <div>
           <h2 className="text-2xl font-black text-slate-800 dark:text-white flex items-center gap-2 uppercase tracking-tight">
@@ -119,43 +152,51 @@ export const ProductionCalendar: React.FC = () => {
             Scheduling Matrix
           </h2>
           <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-1">
-            {viewType === 'week' ? '4-Week Strategic Planning Horizon' : 'Monthly Daily Execution View'} • {category}
+            {viewType === 'week' ? '4-Week Strategic Horizon' : 'Execution Day Grid'} • {category}
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
           <div className="bg-white dark:bg-slate-850 p-1.5 rounded-2xl border-2 border-slate-100 dark:border-slate-800 flex shadow-sm">
-            <button 
-              onClick={() => setViewType('month')}
-              className={`px-5 py-2 text-[10px] font-black uppercase rounded-xl transition-all ${viewType === 'month' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'text-slate-400 hover:text-slate-600'}`}
-            >
-              Day Grid
-            </button>
-            <button 
-              onClick={() => setViewType('week')}
-              className={`px-5 py-2 text-[10px] font-black uppercase rounded-xl transition-all ${viewType === 'week' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'text-slate-400 hover:text-slate-600'}`}
-            >
-              Week 1-4
-            </button>
+            <button onClick={() => setViewType('month')} className={`px-5 py-2 text-[10px] font-black uppercase rounded-xl transition-all ${viewType === 'month' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400'}`}>Day Grid</button>
+            <button onClick={() => setViewType('week')} className={`px-5 py-2 text-[10px] font-black uppercase rounded-xl transition-all ${viewType === 'week' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400'}`}>Week 1-4</button>
           </div>
 
           <div className="flex items-center gap-2 bg-white dark:bg-slate-850 p-1.5 rounded-2xl border-2 border-slate-100 dark:border-slate-800 shadow-sm">
-            <button onClick={() => navigateDate(-1)} className="p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl text-slate-400 transition-colors">
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <span className="text-[11px] font-black uppercase text-slate-700 dark:text-white px-4 tracking-widest min-w-[160px] text-center">
-              {new Date(baseDate).toLocaleString('default', { month: 'long', year: 'numeric' })}
-            </span>
-            <button onClick={() => navigateDate(1)} className="p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl text-slate-400 transition-colors">
-              <ChevronRight className="w-4 h-4" />
-            </button>
+            <button onClick={() => navigateDate(-1)} className="p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl text-slate-400"><ChevronLeft className="w-4 h-4" /></button>
+            <span className="text-[11px] font-black uppercase text-slate-700 dark:text-white px-4 min-w-[160px] text-center">{new Date(baseDate).toLocaleString('default', { month: 'long', year: 'numeric' })}</span>
+            <button onClick={() => navigateDate(1)} className="p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl text-slate-400"><ChevronRight className="w-4 h-4" /></button>
           </div>
         </div>
       </div>
 
-      {/* Unified Matrix Board */}
-      <div className="bg-white dark:bg-slate-850 rounded-[2.5rem] shadow-2xl border-2 border-slate-200 dark:border-slate-700 overflow-hidden">
-        <div className="overflow-x-auto custom-scrollbar">
+      {/* MATRIX WRAPPER WITH CUSTOM NAV ARROWS */}
+      <div className="relative group/matrix">
+        {/* Left Scroll Overlay */}
+        <button 
+          onClick={() => scrollMatrix('left')}
+          className="absolute left-[240px] top-1/2 -translate-y-1/2 z-40 p-3 bg-white/90 dark:bg-slate-800/90 rounded-full shadow-2xl border border-slate-200 dark:border-slate-700 opacity-0 group-hover/matrix:opacity-100 transition-opacity hidden md:flex items-center justify-center hover:scale-110 active:scale-95 text-indigo-600"
+        >
+          <ArrowLeftCircle className="w-8 h-8" />
+        </button>
+
+        {/* Right Scroll Overlay */}
+        <button 
+          onClick={() => scrollMatrix('right')}
+          className="absolute right-4 top-1/2 -translate-y-1/2 z-40 p-3 bg-white/90 dark:bg-slate-800/90 rounded-full shadow-2xl border border-slate-200 dark:border-slate-700 opacity-0 group-hover/matrix:opacity-100 transition-opacity hidden md:flex items-center justify-center hover:scale-110 active:scale-95 text-indigo-600"
+        >
+          <ArrowRightCircle className="w-8 h-8" />
+        </button>
+
+        {/* Scrollable Container */}
+        <div 
+          ref={scrollContainerRef}
+          onMouseDown={handleMouseDown}
+          onMouseLeave={handleMouseLeave}
+          onMouseUp={handleMouseUp}
+          onMouseMove={handleMouseMove}
+          className={`bg-white dark:bg-slate-850 rounded-[2.5rem] shadow-2xl border-2 border-slate-200 dark:border-slate-700 overflow-x-auto custom-scrollbar relative ${isDragging ? 'cursor-grabbing select-none' : 'cursor-default'}`}
+        >
           <table className="w-full border-collapse">
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-900/50">
@@ -182,18 +223,17 @@ export const ProductionCalendar: React.FC = () => {
                 const colors = PROCESS_COLORS[proc] || PROCESS_COLORS['Mixing'];
                 return (
                   <tr key={proc} className="group hover:bg-slate-50/50 transition-colors">
-                    {/* UNIFIED IDENTITY ANCHOR COLUMN */}
+                    {/* STICKY UNIFIED IDENTITY ANCHOR */}
                     <td className={`sticky left-0 z-20 p-8 border-b-2 border-r-4 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-850 group-hover:bg-slate-50 dark:group-hover:bg-slate-800 transition-colors shadow-[6px_0_15px_rgba(0,0,0,0.06)] border-l-[14px] ${colors.border}`}>
                       <div className="flex flex-col">
                         <span className={`text-[14px] font-black uppercase tracking-[0.1em] mb-3 ${colors.text}`}>
                           {proc}
                         </span>
-                        {/* Horizontal Identity Bar */}
                         <div className={`w-14 h-2.5 rounded-full shadow-sm ${colors.bg}`}></div>
                       </div>
                     </td>
 
-                    {/* Matrix Cells */}
+                    {/* Cells */}
                     {columns.map(col => {
                       const entries = productionData.filter(d => 
                         d.process === proc && 
@@ -205,7 +245,6 @@ export const ProductionCalendar: React.FC = () => {
                       const manualOff = !col.isAggregated ? offDays.find(od => od.date === col.key) : null;
                       const autoOff = !col.isAggregated ? getWeeklyOffDayType(col.key) : null;
                       const offType = manualOff?.type || autoOff;
-                      
                       const holidaysInPeriod = col.isAggregated ? offDays.filter(od => od.date >= col.startDate && od.date <= col.endDate).length : 0;
 
                       return (
