@@ -1,3 +1,4 @@
+
 /**
  * HALAGEL DATE UTILITIES
  * Strictly enforces Malaysia Time (UTC+8) to prevent the "Yesterday Bug".
@@ -16,6 +17,17 @@ export const getTodayISO = (): string => {
     month: '2-digit',
     day: '2-digit'
   }).format(new Date());
+};
+
+/**
+ * Helper to convert YYYY-MM-DD to DD-MM-YYYY for display
+ */
+export const formatDateToDMY = (dateStr: string): string => {
+  if (!dateStr) return '';
+  const clean = dateStr.split(' ')[0];
+  const parts = clean.split('-');
+  if (parts.length !== 3) return clean;
+  return `${parts[2]}-${parts[1]}-${parts[0]}`;
 };
 
 /**
@@ -75,17 +87,12 @@ export const getDbTimestamp = (): string => {
 };
 
 /**
- * Formats ISO or DB timestamp string to YYYY-MM-DD HH:mm:ss in Malaysia Time.
+ * Formats ISO or DB timestamp string to DD-MM-YYYY HH:mm:ss in Malaysia Time.
  */
 export const formatFullTimestamp = (isoStr: string): string => {
   if (!isoStr) return '';
   
-  // If already in DB format, return as is
-  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(isoStr)) {
-    return isoStr;
-  }
-
-  const date = new Date(isoStr);
+  const date = new Date(isoStr.includes(' ') ? isoStr.replace(' ', 'T') : isoStr);
   if (isNaN(date.getTime())) return isoStr;
   
   const formatter = new Intl.DateTimeFormat('en-CA', {
@@ -102,11 +109,11 @@ export const formatFullTimestamp = (isoStr: string): string => {
   const parts = formatter.formatToParts(date);
   const find = (type: string) => parts.find(p => p.type === type)?.value;
   
-  return `${find('year')}-${find('month')}-${find('day')} ${find('hour')}:${find('minute')}:${find('second')}`;
+  return `${find('day')}-${find('month')}-${find('year')} ${find('hour')}:${find('minute')}:${find('second')}`;
 };
 
 /**
- * Formats YYYY-MM-DD for display (e.g., "2025-12-28 SUNDAY").
+ * Formats YYYY-MM-DD for display (e.g., "28-12-2025 SUNDAY").
  */
 export const formatDisplayDate = (dateStr: string): string => {
   if (!dateStr) return 'Invalid Date';
@@ -129,7 +136,7 @@ export const formatDisplayDate = (dateStr: string): string => {
     timeZone: 'Asia/Kuala_Lumpur' 
   }).format(localDate).toUpperCase();
   
-  return `${cleanDate} ${dayName}`;
+  return `${day.toString().padStart(2, '0')}-${month.toString().padStart(2, '0')}-${year} ${dayName}`;
 };
 
 /**
