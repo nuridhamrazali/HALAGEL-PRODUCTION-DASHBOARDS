@@ -11,6 +11,7 @@ import { ProductionLog } from './components/pages/ProductionLog';
 import { ActivityLog } from './components/pages/ActivityLog';
 import { UserManagement } from './components/pages/UserManagement';
 import { ProcessAnalytics } from './components/pages/ProcessAnalytics';
+import { ProductionCalendar } from './components/pages/ProductionCalendar';
 
 const App: React.FC = () => {
   return (
@@ -21,6 +22,7 @@ const App: React.FC = () => {
             <Route path="/" element={<Layout><Dashboard /></Layout>} />
             <Route path="/plan" element={<Layout><InputPlan /></Layout>} />
             <Route path="/actual" element={<Layout><InputActual /></Layout>} />
+            <Route path="/calendar" element={<Layout><ProductionCalendar /></Layout>} />
             <Route path="/reports" element={<Layout><ProductionLog /></Layout>} />
             <Route path="/process-analytics" element={<Layout><ProcessAnalytics /></Layout>} />
             <Route path="/logs" element={<Layout><ActivityLog /></Layout>} />
