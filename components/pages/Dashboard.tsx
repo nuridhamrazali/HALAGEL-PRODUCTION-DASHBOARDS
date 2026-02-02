@@ -139,11 +139,10 @@ export const Dashboard: React.FC = () => {
     });
   }, [dashboardData.filteredData, offDays, selectedMonth, sortConfig]);
 
-  // Fix: Corrected property access error by explicitly awaiting the async StorageService method
   const handleDelete = async (id: string) => {
       if(!window.confirm("PERMANENTLY delete record?")) return;
       
-      // The await here ensures we extract the object from the Promise correctly
+      // Fix: Specifically await the result to ensure it is resolved before destructuring
       const result = await StorageService.deleteProductionEntry(id);
       const { deletedItem } = result;
 
