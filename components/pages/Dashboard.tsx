@@ -142,11 +142,11 @@ export const Dashboard: React.FC = () => {
   const handleDelete = async (id: string) => {
       if(!window.confirm("PERMANENTLY delete record?")) return;
       
-      // Fix: Specifically await the result to ensure it is resolved before destructuring
       const result = await StorageService.deleteProductionEntry(id);
       const { deletedItem } = result;
 
       if (deletedItem) {
+          // Explicitly await log entry before refreshing UI
           await StorageService.addLog({
             userId: user!.id, userName: user!.name, action: 'DELETE_RECORD',
             details: `Deleted: ${deletedItem.productName} (${deletedItem.date})`
