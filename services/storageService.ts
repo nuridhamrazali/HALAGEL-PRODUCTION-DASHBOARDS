@@ -66,13 +66,14 @@ const normalizeUser = (u: any): User => ({
   avatar: String(u.avatar || '')
 });
 
-const updateWriteTimestamp = () => {
+const setWriteLock = () => {
   localStorage.setItem(KEYS.LAST_WRITE, Date.now().toString());
 };
 
 const isWriteLocked = () => {
   const lastWrite = parseInt(localStorage.getItem(KEYS.LAST_WRITE) || '0');
-  return (Date.now() - lastWrite) < 10000; // 10 second safety buffer
+  // 60 second safety buffer to allow Google Apps Script eventual consistency
+  return (Date.now() - lastWrite) < 60000; 
 };
 
 export const StorageService = {
@@ -86,7 +87,7 @@ export const StorageService = {
   },
   
   saveUsers: async (users: User[]) => {
-    updateWriteTimestamp();
+    setWriteLock();
     localStorage.setItem(KEYS.USERS, JSON.stringify(users));
     return await GoogleSheetsService.saveData('saveUsers', users);
   },
@@ -99,7 +100,7 @@ export const StorageService = {
   },
   
   saveProductionData: async (data: ProductionEntry[]) => {
-    updateWriteTimestamp();
+    setWriteLock();
     const cleaned = data.map(normalizeProduction).filter(p => p.date);
     localStorage.setItem(KEYS.PRODUCTION, JSON.stringify(cleaned));
     return await GoogleSheetsService.saveData('saveProduction', cleaned);
@@ -121,12 +122,13 @@ export const StorageService = {
   },
   
   saveOffDays: async (days: OffDay[]) => {
-    updateWriteTimestamp();
+    setWriteLock();
     localStorage.setItem(KEYS.OFF_DAYS, JSON.stringify(days));
     return await GoogleSheetsService.saveData('saveOffDays', days);
   },
 
   syncWithSheets: async () => {
+    // If locked (user just saved something), don't sync to avoid overwriting new data with stale cloud data
     if (!GoogleSheetsService.isEnabled() || isWriteLocked()) return;
     
     try {
@@ -136,20 +138,28 @@ export const StorageService = {
         GoogleSheetsService.fetchData<User[]>('getUsers')
       ]);
 
-      // Only overwrite if cloud data is non-empty and seems valid
-      if (results[0] && Array.isArray(results[0]) && results[0].length > 0) {
-          const localCount = StorageService.getProductionData().length;
-          // If cloud has significantly less data, it might be an outdated read
-          if (results[0].length >= localCount || localCount === 0) {
+      const localProduction = StorageService.getProductionData();
+      const localUsers = StorageService.getUsers();
+
+      // PROTECT LOCAL DATA: Only overwrite if cloud data has more or equal records.
+      // This specifically prevents the Planner's newly created plans from being deleted by a sync.
+      if (results[0] && Array.isArray(results[0])) {
+          if (results[0].length >= localProduction.length || localProduction.length === 0) {
             localStorage.setItem(KEYS.PRODUCTION, JSON.stringify(results[0].map(normalizeProduction)));
           }
       }
       
-      if (results[2] && Array.isArray(results[2]) && results[2].length >= INITIAL_USERS.length) {
-          localStorage.setItem(KEYS.USERS, JSON.stringify(results[2].map(normalizeUser)));
+      if (results[2] && Array.isArray(results[2])) {
+          if (results[2].length >= localUsers.length) {
+            localStorage.setItem(KEYS.USERS, JSON.stringify(results[2].map(normalizeUser)));
+          }
+      }
+
+      if (results[1] && Array.isArray(results[1])) {
+          localStorage.setItem(KEYS.OFF_DAYS, JSON.stringify(results[1]));
       }
     } catch (err) {
-      console.error("Sync Failure:", err);
+      console.error("Background Sync Failure:", err);
     }
   },
   
