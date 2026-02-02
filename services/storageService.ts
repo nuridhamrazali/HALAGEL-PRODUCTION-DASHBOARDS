@@ -66,14 +66,31 @@ const normalizeUser = (u: any): User => ({
   avatar: String(u.avatar || '')
 });
 
+const normalizeLog = (l: any): ActivityLog => {
+  if (Array.isArray(l)) {
+    return {
+      id: String(l[0] || Date.now()),
+      timestamp: String(l[1] || getDbTimestamp()),
+      userId: String(l[2] || ''),
+      userName: String(l[3] || 'Unknown'),
+      action: String(l[4] || 'ACTION'),
+      details: String(l[5] || '')
+    };
+  }
+  return {
+    ...l,
+    id: String(l.id || Date.now()),
+    timestamp: String(l.timestamp || getDbTimestamp())
+  };
+};
+
 const setWriteLock = () => {
   localStorage.setItem(KEYS.LAST_WRITE, Date.now().toString());
 };
 
 const isWriteLocked = () => {
   const lastWrite = parseInt(localStorage.getItem(KEYS.LAST_WRITE) || '0');
-  // 60 second safety buffer to allow Google Apps Script eventual consistency
-  return (Date.now() - lastWrite) < 60000; 
+  return (Date.now() - lastWrite) < 45000; 
 };
 
 export const StorageService = {
@@ -82,6 +99,7 @@ export const StorageService = {
       const raw = localStorage.getItem(KEYS.USERS);
       if (!raw) return INITIAL_USERS;
       const data = JSON.parse(raw);
+      // If the stored data is empty or invalid, return initial constants
       return Array.isArray(data) && data.length > 0 ? data.map(normalizeUser) : INITIAL_USERS;
     } catch { return INITIAL_USERS; }
   },
@@ -117,7 +135,7 @@ export const StorageService = {
   getOffDays: (): OffDay[] => {
     try {
       const data = JSON.parse(localStorage.getItem(KEYS.OFF_DAYS) || '[]');
-      return Array.isArray(data) ? data : INITIAL_OFF_DAYS;
+      return Array.isArray(data) && data.length > 0 ? data : INITIAL_OFF_DAYS;
     } catch { return INITIAL_OFF_DAYS; }
   },
   
@@ -128,35 +146,34 @@ export const StorageService = {
   },
 
   syncWithSheets: async () => {
-    // If locked (user just saved something), don't sync to avoid overwriting new data with stale cloud data
     if (!GoogleSheetsService.isEnabled() || isWriteLocked()) return;
     
     try {
       const results = await Promise.all([
         GoogleSheetsService.fetchData<any[]>('getProduction'),
         GoogleSheetsService.fetchData<any[]>('getOffDays'),
-        GoogleSheetsService.fetchData<User[]>('getUsers')
+        GoogleSheetsService.fetchData<User[]>('getUsers'),
+        GoogleSheetsService.fetchData<any[]>('getLogs')
       ]);
 
       const localProduction = StorageService.getProductionData();
       const localUsers = StorageService.getUsers();
 
-      // PROTECT LOCAL DATA: Only overwrite if cloud data has more or equal records.
-      // This specifically prevents the Planner's newly created plans from being deleted by a sync.
-      if (results[0] && Array.isArray(results[0])) {
-          if (results[0].length >= localProduction.length || localProduction.length === 0) {
-            localStorage.setItem(KEYS.PRODUCTION, JSON.stringify(results[0].map(normalizeProduction)));
-          }
+      // Only overwrite if cloud has data and it's not a stale/empty response
+      if (results[0] && Array.isArray(results[0]) && results[0].length >= localProduction.length) {
+        localStorage.setItem(KEYS.PRODUCTION, JSON.stringify(results[0].map(normalizeProduction)));
       }
       
-      if (results[2] && Array.isArray(results[2])) {
-          if (results[2].length >= localUsers.length) {
-            localStorage.setItem(KEYS.USERS, JSON.stringify(results[2].map(normalizeUser)));
-          }
+      if (results[2] && Array.isArray(results[2]) && results[2].length >= localUsers.length) {
+        localStorage.setItem(KEYS.USERS, JSON.stringify(results[2].map(normalizeUser)));
       }
 
-      if (results[1] && Array.isArray(results[1])) {
-          localStorage.setItem(KEYS.OFF_DAYS, JSON.stringify(results[1]));
+      if (results[1] && Array.isArray(results[1]) && results[1].length > 0) {
+        localStorage.setItem(KEYS.OFF_DAYS, JSON.stringify(results[1]));
+      }
+
+      if (results[3] && Array.isArray(results[3])) {
+        localStorage.setItem(KEYS.LOGS, JSON.stringify(results[3].map(normalizeLog)));
       }
     } catch (err) {
       console.error("Background Sync Failure:", err);
@@ -165,7 +182,8 @@ export const StorageService = {
   
   getLogs: (): ActivityLog[] => {
     try {
-      return JSON.parse(localStorage.getItem(KEYS.LOGS) || '[]');
+      const logs = JSON.parse(localStorage.getItem(KEYS.LOGS) || '[]');
+      return Array.isArray(logs) ? logs.map(normalizeLog) : [];
     } catch { return []; }
   },
   
