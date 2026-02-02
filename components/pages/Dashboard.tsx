@@ -139,16 +139,21 @@ export const Dashboard: React.FC = () => {
     });
   }, [dashboardData.filteredData, offDays, selectedMonth, sortConfig]);
 
-  const handleDelete = (id: string) => {
+  // Fix: Corrected property access error by explicitly awaiting the async StorageService method
+  const handleDelete = async (id: string) => {
       if(!window.confirm("PERMANENTLY delete record?")) return;
-      const { deletedItem } = StorageService.deleteProductionEntry(id);
+      
+      // The await here ensures we extract the object from the Promise correctly
+      const result = await StorageService.deleteProductionEntry(id);
+      const { deletedItem } = result;
+
       if (deletedItem) {
-          StorageService.addLog({
+          await StorageService.addLog({
             userId: user!.id, userName: user!.name, action: 'DELETE_RECORD',
             details: `Deleted: ${deletedItem.productName} (${deletedItem.date})`
           });
           window.dispatchEvent(new CustomEvent('app-notification', { 
-            detail: { message: 'RECORD DELETED', type: 'info' } 
+            detail: { message: 'RECORD DELETED', type: 'success' } 
           }));
       }
       triggerRefresh();
@@ -176,9 +181,9 @@ export const Dashboard: React.FC = () => {
     }
   };
 
-  const SortHeader = ({ label, sortKey }: { label: string, sortKey: keyof ProductionEntry }) => (
-    <th className="px-8 py-4 cursor-pointer group" onClick={() => handleSort(sortKey)}>
-        <div className="flex items-center gap-1">
+  const SortHeader = ({ label, sortKey, align = 'left' }: { label: string, sortKey: keyof ProductionEntry, align?: 'left' | 'right' | 'center' }) => (
+    <th className={`px-8 py-4 cursor-pointer group text-${align}`} onClick={() => handleSort(sortKey)}>
+        <div className={`flex items-center gap-1 ${align === 'right' ? 'justify-end' : align === 'center' ? 'justify-center' : ''}`}>
             <span className={sortConfig?.key === sortKey ? 'text-indigo-600' : ''}>{label}</span>
             <ArrowUpDown className={`w-3 h-3 transition-opacity ${sortConfig?.key === sortKey ? 'opacity-100' : 'opacity-0 group-hover:opacity-60'}`} />
         </div>
@@ -305,12 +310,12 @@ export const Dashboard: React.FC = () => {
                                     <tr className="border-b border-gray-50 dark:border-slate-800 text-[9px] font-black text-slate-400 uppercase tracking-widest bg-gray-50/30 dark:bg-slate-900/30">
                                         <SortHeader label="Process" sortKey="process" />
                                         <SortHeader label="Product Name" sortKey="productName" />
-                                        <th className="px-8 py-4 text-right">Plan Data</th>
-                                        <th className="px-8 py-4 text-right">Actual Data</th>
-                                        <th className="px-8 py-4 text-center">Efficiency</th>
-                                        <th className="px-8 py-4 text-center">Batch No</th>
-                                        <th className="px-8 py-4 text-center">Manpower</th>
-                                        {hasPermission(['admin', 'manager', 'hod']) && <th className="px-8 py-4 text-center">Action</th>}
+                                        <th className="px-8 py-4 text-right font-black uppercase text-[10px] tracking-widest">Plan Data</th>
+                                        <th className="px-8 py-4 text-right font-black uppercase text-[10px] tracking-widest">Actual Data</th>
+                                        <th className="px-8 py-4 text-center font-black uppercase text-[10px] tracking-widest">Efficiency</th>
+                                        <th className="px-8 py-4 text-center font-black uppercase text-[10px] tracking-widest">Batch No</th>
+                                        <th className="px-8 py-4 text-center font-black uppercase text-[10px] tracking-widest">Manpower</th>
+                                        {hasPermission(['admin', 'manager', 'hod']) && <th className="px-8 py-4 text-center font-black uppercase text-[10px] tracking-widest">Action</th>}
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-50 dark:divide-slate-800/30">
