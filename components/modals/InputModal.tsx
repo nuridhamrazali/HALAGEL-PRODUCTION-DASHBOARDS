@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDashboard } from '../../contexts/DashboardContext';
@@ -24,7 +25,7 @@ export const InputModal: React.FC<InputModalProps> = ({ onClose, editEntry }) =>
   const [productName, setProductName] = useState('');
   const [quantity, setQuantity] = useState('');
   const [unit, setUnit] = useState<UnitType>('KG');
-  const [manpower, setManpower] = useState('0');
+  const [manpower, setManpower] = useState('0.00');
   const [batchNo, setBatchNo] = useState('');
   const [planRemark, setPlanRemark] = useState('');
   const [actualRemark, setActualRemark] = useState('');
@@ -42,10 +43,8 @@ export const InputModal: React.FC<InputModalProps> = ({ onClose, editEntry }) =>
   const isLocked = !editEntry && !!currentOffDay;
 
   const availableProcesses = useMemo(() => {
-    if (['Toothpaste', 'Rocksalt', 'Cosmetic'].includes(category)) {
-      return PROCESSES.filter(p => p !== 'Encapsulation');
-    }
-    return [...PROCESSES];
+    if (category === 'Healthcare') return [...PROCESSES];
+    return PROCESSES.filter(p => !['Encapsulation', 'Blister', 'Capsules'].includes(p));
   }, [category]);
 
   const inputClasses = "w-full p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-bold focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all shadow-sm";
@@ -72,7 +71,7 @@ export const InputModal: React.FC<InputModalProps> = ({ onClose, editEntry }) =>
         setQuantity(editEntry.planQuantity.toString());
       }
       
-      setManpower(editEntry.manpower ? Number(editEntry.manpower).toString() : '0');
+      setManpower(editEntry.manpower ? Number(editEntry.manpower).toFixed(2) : '0.00');
       setBatchNo(editEntry.batchNo || '');
       setPlanRemark(editEntry.planRemark || '');
       setActualRemark(editEntry.actualRemark || '');
@@ -99,8 +98,7 @@ export const InputModal: React.FC<InputModalProps> = ({ onClose, editEntry }) =>
     setIsSubmitting(true);
     const normalizedDate = (date || '').trim().split(' ')[0];
     const currentData = StorageService.getProductionData();
-    const determinedStatus: ProductionStatus = tab === 'Actual' ? 'Completed' : 'In Progress';
-
+    
     try {
         if (editEntry) {
             const updated = currentData.map((p: ProductionEntry) => {
@@ -121,7 +119,13 @@ export const InputModal: React.FC<InputModalProps> = ({ onClose, editEntry }) =>
                 }
                 return p;
             });
-            StorageService.saveProductionData(updated);
+            await StorageService.saveProductionData(updated);
+            await StorageService.addLog({
+                userId: user!.id,
+                userName: user!.name,
+                action: 'EDIT_RECORD',
+                details: `Modified record for ${productName} (${normalizedDate})`
+            });
         } else {
             if (tab === 'Plan') {
                 const newEntry: ProductionEntry = {
@@ -134,7 +138,13 @@ export const InputModal: React.FC<InputModalProps> = ({ onClose, editEntry }) =>
                     status: 'In Progress',
                     lastUpdatedBy: user!.id, updatedAt: getDbTimestamp()
                 };
-                StorageService.saveProductionData([...currentData, newEntry]);
+                await StorageService.saveProductionData([...currentData, newEntry]);
+                await StorageService.addLog({
+                    userId: user!.id,
+                    userName: user!.name,
+                    action: 'CREATE_PLAN',
+                    details: `Planned ${newEntry.planQuantity} ${unit} for ${productName}`
+                });
             } else {
                 if (!selectedPlanId) throw new Error("Please select a plan");
                 const updated = currentData.map((p: ProductionEntry) => {
@@ -149,12 +159,18 @@ export const InputModal: React.FC<InputModalProps> = ({ onClose, editEntry }) =>
                     }
                     return p;
                 });
-                StorageService.saveProductionData(updated);
+                await StorageService.saveProductionData(updated);
+                await StorageService.addLog({
+                    userId: user!.id,
+                    userName: user!.name,
+                    action: 'RECORD_ACTUAL',
+                    details: `Recorded ${quantity} ${unit} for ${productName} (Batch: ${batchNo})`
+                });
             }
         }
 
         window.dispatchEvent(new CustomEvent('app-notification', { 
-            detail: { message: determinedStatus === 'Completed' ? 'PRODUCTION COMPLETED' : 'PLAN SAVED', type: 'success' } 
+            detail: { message: tab === 'Actual' ? 'PRODUCTION COMPLETED' : 'PLAN SAVED', type: 'success' } 
         }));
         triggerRefresh();
         onClose();
@@ -312,7 +328,7 @@ export const InputModal: React.FC<InputModalProps> = ({ onClose, editEntry }) =>
                                   </div>
                                   <div className="col-span-2">
                                     <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Manpower Used</label>
-                                    <input type="number" required step="any" value={manpower} onChange={e => setManpower(e.target.value)} className={inputClasses} />
+                                    <input type="number" required step="0.01" value={manpower} onChange={e => setManpower(e.target.value)} className={inputClasses} />
                                   </div>
                                 </div>
                                 <div>
