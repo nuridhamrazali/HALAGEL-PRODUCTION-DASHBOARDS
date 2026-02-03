@@ -4,15 +4,35 @@ import { StorageService } from '../../services/storageService';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { ActivityLog as LogEntry } from '../../types';
-import { History, User, Clock } from 'lucide-react';
+import { History, User, Clock, Loader2 } from 'lucide-react';
 import { formatFullTimestamp } from '../../utils/dateUtils';
 
 export const ActivityLog: React.FC = () => {
   const { user: authUser } = useAuth();
-  const { refreshKey } = useDashboard();
+  const { refreshKey, triggerRefresh } = useDashboard();
   const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [isSyncing, setIsSyncing] = useState(false);
 
-  // Re-fetch logs whenever the refreshKey changes (globally triggered by operations)
+  // Sync with cloud on mount to see logs from others
+  useEffect(() => {
+    const syncLogs = async () => {
+      setIsSyncing(true);
+      try {
+        await StorageService.syncWithSheets();
+        setLogs(StorageService.getLogs());
+      } catch (err) {
+        console.error("Log Sync Error:", err);
+      } finally {
+        setIsSyncing(false);
+      }
+    };
+
+    if (authUser) {
+      syncLogs();
+    }
+  }, [authUser]);
+
+  // Update list whenever refreshKey changes
   useEffect(() => {
     setLogs(StorageService.getLogs());
   }, [refreshKey]);
@@ -33,14 +53,22 @@ export const ActivityLog: React.FC = () => {
           </h2>
           <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Audit trail of all manufacturing operations</p>
         </div>
-        <div className="px-3 py-1 bg-indigo-50 dark:bg-indigo-900/30 rounded-full border border-indigo-100 dark:border-indigo-800 text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-tighter">
-          {logs.length} Total Actions
+        <div className="flex items-center gap-3">
+          {isSyncing && (
+            <div className="flex items-center gap-2 text-[10px] font-black text-indigo-500 uppercase tracking-widest animate-pulse">
+              <Loader2 className="w-3 h-3 animate-spin" />
+              Syncing Cloud...
+            </div>
+          )}
+          <div className="px-3 py-1 bg-indigo-50 dark:bg-indigo-900/30 rounded-full border border-indigo-100 dark:border-indigo-800 text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-tighter">
+            {logs.length} Total Actions
+          </div>
         </div>
       </div>
       
       <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-sm border border-gray-100 dark:border-slate-700 overflow-hidden">
         <ul className="divide-y divide-gray-100 dark:divide-slate-700">
-            {logs.length === 0 ? (
+            {logs.length === 0 && !isSyncing ? (
                 <li className="p-12 text-center flex flex-col items-center justify-center gap-4">
                    <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-full text-slate-200">
                       <History className="w-10 h-10" />
