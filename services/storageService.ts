@@ -90,6 +90,7 @@ const setWriteLock = () => {
 
 const isWriteLocked = () => {
   const lastWrite = parseInt(localStorage.getItem(KEYS.LAST_WRITE) || '0');
+  // 45 second safety buffer
   return (Date.now() - lastWrite) < 45000; 
 };
 
@@ -99,7 +100,6 @@ export const StorageService = {
       const raw = localStorage.getItem(KEYS.USERS);
       if (!raw) return INITIAL_USERS;
       const data = JSON.parse(raw);
-      // If the stored data is empty or invalid, return initial constants
       return Array.isArray(data) && data.length > 0 ? data.map(normalizeUser) : INITIAL_USERS;
     } catch { return INITIAL_USERS; }
   },
@@ -146,11 +146,15 @@ export const StorageService = {
   },
 
   syncWithSheets: async () => {
-    if (!GoogleSheetsService.isEnabled() || isWriteLocked()) return;
+    if (!GoogleSheetsService.isEnabled()) return;
+    
+    // Production data sync is restricted by write lock to prevent overwriting new local entries
+    // but users and logs should always sync if possible
+    const locked = isWriteLocked();
     
     try {
       const results = await Promise.all([
-        GoogleSheetsService.fetchData<any[]>('getProduction'),
+        !locked ? GoogleSheetsService.fetchData<any[]>('getProduction') : Promise.resolve(null),
         GoogleSheetsService.fetchData<any[]>('getOffDays'),
         GoogleSheetsService.fetchData<User[]>('getUsers'),
         GoogleSheetsService.fetchData<any[]>('getLogs')
@@ -159,8 +163,7 @@ export const StorageService = {
       const localProduction = StorageService.getProductionData();
       const localUsers = StorageService.getUsers();
 
-      // Only overwrite if cloud has data and it's not a stale/empty response
-      if (results[0] && Array.isArray(results[0]) && results[0].length >= localProduction.length) {
+      if (!locked && results[0] && Array.isArray(results[0]) && results[0].length >= localProduction.length) {
         localStorage.setItem(KEYS.PRODUCTION, JSON.stringify(results[0].map(normalizeProduction)));
       }
       
@@ -193,7 +196,7 @@ export const StorageService = {
     logs.unshift(newLog);
     if (logs.length > 500) logs.pop();
     localStorage.setItem(KEYS.LOGS, JSON.stringify(logs));
-    await GoogleSheetsService.saveData('saveLogs', logs);
+    return await GoogleSheetsService.saveData('saveLogs', logs);
   },
 
   getSession: (): User | null => {
