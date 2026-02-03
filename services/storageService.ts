@@ -90,8 +90,22 @@ const setWriteLock = () => {
 
 const isWriteLocked = () => {
   const lastWrite = parseInt(localStorage.getItem(KEYS.LAST_WRITE) || '0');
-  // 45 second safety buffer
   return (Date.now() - lastWrite) < 45000; 
+};
+
+// Helper to merge arrays by ID, keeping the latest version based on updatedAt
+const mergeById = <T extends { id: string, updatedAt?: string }>(local: T[], cloud: T[]): T[] => {
+  const map = new Map<string, T>();
+  // Start with cloud data
+  cloud.forEach(item => map.set(String(item.id), item));
+  // Override with local data if local is newer or cloud version missing
+  local.forEach(item => {
+    const existing = map.get(String(item.id));
+    if (!existing || (item.updatedAt && existing.updatedAt && item.updatedAt > existing.updatedAt)) {
+      map.set(String(item.id), item);
+    }
+  });
+  return Array.from(map.values());
 };
 
 export const StorageService = {
@@ -148,35 +162,40 @@ export const StorageService = {
   syncWithSheets: async () => {
     if (!GoogleSheetsService.isEnabled()) return;
     
-    // Production data sync is restricted by write lock to prevent overwriting new local entries
-    // but users and logs should always sync if possible
     const locked = isWriteLocked();
     
     try {
       const results = await Promise.all([
-        !locked ? GoogleSheetsService.fetchData<any[]>('getProduction') : Promise.resolve(null),
+        GoogleSheetsService.fetchData<any[]>('getProduction'),
         GoogleSheetsService.fetchData<any[]>('getOffDays'),
         GoogleSheetsService.fetchData<User[]>('getUsers'),
         GoogleSheetsService.fetchData<any[]>('getLogs')
       ]);
 
       const localProduction = StorageService.getProductionData();
-      const localUsers = StorageService.getUsers();
+      const localLogs = StorageService.getLogs();
 
-      if (!locked && results[0] && Array.isArray(results[0]) && results[0].length >= localProduction.length) {
-        localStorage.setItem(KEYS.PRODUCTION, JSON.stringify(results[0].map(normalizeProduction)));
+      // For Production and Logs: MERGE instead of OVERWRITE
+      if (results[0] && Array.isArray(results[0])) {
+        const cloudProduction = results[0].map(normalizeProduction);
+        const merged = mergeById(localProduction, cloudProduction);
+        localStorage.setItem(KEYS.PRODUCTION, JSON.stringify(merged));
       }
       
-      if (results[2] && Array.isArray(results[2]) && results[2].length >= localUsers.length) {
+      if (results[3] && Array.isArray(results[3])) {
+        const cloudLogs = results[3].map(normalizeLog);
+        const mergedLogs = mergeById(localLogs, cloudLogs);
+        // Sort logs descending by timestamp
+        mergedLogs.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+        localStorage.setItem(KEYS.LOGS, JSON.stringify(mergedLogs.slice(0, 500)));
+      }
+
+      if (results[2] && Array.isArray(results[2]) && results[2].length > 0) {
         localStorage.setItem(KEYS.USERS, JSON.stringify(results[2].map(normalizeUser)));
       }
 
       if (results[1] && Array.isArray(results[1]) && results[1].length > 0) {
         localStorage.setItem(KEYS.OFF_DAYS, JSON.stringify(results[1]));
-      }
-
-      if (results[3] && Array.isArray(results[3])) {
-        localStorage.setItem(KEYS.LOGS, JSON.stringify(results[3].map(normalizeLog)));
       }
     } catch (err) {
       console.error("Background Sync Failure:", err);
@@ -191,12 +210,13 @@ export const StorageService = {
   },
   
   addLog: async (log: Omit<ActivityLog, 'id' | 'timestamp'>) => {
+    setWriteLock(); // CRITICAL: Adding a log must lock production sync to prevent overwrites
     const logs = StorageService.getLogs();
-    const newLog = { ...log, id: Date.now().toString(), timestamp: getDbTimestamp() };
+    const newLog = { ...log, id: Date.now().toString(), timestamp: getDbTimestamp(), updatedAt: getDbTimestamp() };
     logs.unshift(newLog);
     if (logs.length > 500) logs.pop();
     localStorage.setItem(KEYS.LOGS, JSON.stringify(logs));
-    return await GoogleSheetsService.saveData('saveLogs', logs);
+    return await GoogleSheetsService.saveData('saveLogs', [newLog, ...logs.slice(0, 49)]); // Send batch to cloud
   },
 
   getSession: (): User | null => {
