@@ -33,6 +33,9 @@ export const InputModal: React.FC<InputModalProps> = ({ onClose, editEntry }) =>
   const [plans, setPlans] = useState<ProductionEntry[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState<string>('');
 
+  const canEditActual = hasPermission(['admin', 'manager', 'operator']);
+  const canEditPlan = hasPermission(['admin', 'manager', 'planner']);
+
   const offDays = useMemo(() => StorageService.getOffDays(), []);
   
   // Detection for both manual and automatic (Fri/Sat) off days
@@ -67,7 +70,7 @@ export const InputModal: React.FC<InputModalProps> = ({ onClose, editEntry }) =>
     return filtered as ProcessType[];
   }, [category]);
 
-  const inputClasses = "w-full p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-bold focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all shadow-sm";
+  const inputClasses = "w-full p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-bold focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed";
 
   useEffect(() => {
     if (!availableProcesses.includes(process)) {
@@ -83,7 +86,11 @@ export const InputModal: React.FC<InputModalProps> = ({ onClose, editEntry }) =>
       setProductName(editEntry.productName);
       setUnit(editEntry.unit || 'KG');
       
-      if (editEntry.actualQuantity > 0) {
+      // If user is a planner, always default to Plan tab regardless of production progress
+      if (user?.role === 'planner') {
+        setTab('Plan');
+        setQuantity(editEntry.planQuantity.toString());
+      } else if (editEntry.actualQuantity > 0) {
         setTab('Actual');
         setQuantity(editEntry.actualQuantity.toString());
       } else {
@@ -97,7 +104,7 @@ export const InputModal: React.FC<InputModalProps> = ({ onClose, editEntry }) =>
       setActualRemark(editEntry.actualRemark || '');
     } else {
       if (user?.role === 'operator') setTab('Actual');
-      else if (user?.role === 'planner') setTab('Plan');
+      else if (user?.role === 'planner' || user?.role === 'manager' || user?.role === 'admin') setTab('Plan');
     }
   }, [editEntry, user]);
 
@@ -132,12 +139,14 @@ export const InputModal: React.FC<InputModalProps> = ({ onClose, editEntry }) =>
                         ...p, 
                         date: normalizedDate, 
                         category, process, productName, unit,
-                        planQuantity: tab === 'Plan' ? newQty : p.planQuantity,
-                        actualQuantity: tab === 'Actual' ? newQty : p.actualQuantity,
-                        batchNo, manpower: parseFloat(manpower || '0'),
-                        planRemark,
-                        actualRemark,
-                        status: (tab === 'Actual' && newQty > 0 ? 'Completed' : p.status) as ProductionStatus,
+                        // Only update fields the user has permission to change
+                        planQuantity: canEditPlan && tab === 'Plan' ? newQty : p.planQuantity,
+                        actualQuantity: canEditActual && tab === 'Actual' ? newQty : p.actualQuantity,
+                        batchNo: canEditActual ? batchNo : p.batchNo,
+                        manpower: canEditActual ? parseFloat(manpower || '0') : p.manpower,
+                        planRemark: canEditPlan ? planRemark : p.planRemark,
+                        actualRemark: canEditActual ? actualRemark : p.actualRemark,
+                        status: (canEditActual && tab === 'Actual' && newQty > 0 ? 'Completed' : p.status) as ProductionStatus,
                         lastUpdatedBy: user!.id, updatedAt: getDbTimestamp()
                     } as ProductionEntry;
                 }
@@ -216,31 +225,16 @@ export const InputModal: React.FC<InputModalProps> = ({ onClose, editEntry }) =>
         )}
 
         <div className="flex border-b border-gray-200 dark:border-slate-700 shrink-0">
-            {!editEntry ? (
-              <>
-                {hasPermission(['admin', 'manager', 'planner']) && (
-                    <button onClick={() => setTab('Plan')} 
-                        className={`flex-1 py-4 font-black text-[11px] uppercase tracking-widest text-center transition border-b-2 ${tab === 'Plan' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
-                        1. Production Plan
-                    </button>
-                )}
-                {hasPermission(['admin', 'manager', 'operator']) && (
-                    <button onClick={() => setTab('Actual')} 
-                        className={`flex-1 py-4 font-black text-[11px] uppercase tracking-widest text-center transition border-b-2 ${tab === 'Actual' ? 'border-emerald-50 text-emerald-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
-                        2. Record Actual
-                    </button>
-                )}
-              </>
-            ) : (
-              <div className="flex-1 flex overflow-hidden">
-                <button onClick={() => setTab('Plan')} className={`flex-1 py-4 font-black text-[11px] uppercase tracking-widest transition border-b-2 ${tab === 'Plan' ? 'border-indigo-600 text-indigo-600 bg-indigo-50/10' : 'border-transparent text-slate-400'}`}>
-                    Plan Details
-                </button>
-                <button onClick={() => setTab('Actual')} className={`flex-1 py-4 font-black text-[11px] uppercase tracking-widest transition border-b-2 ${tab === 'Actual' ? 'border-emerald-50 text-emerald-600 bg-emerald-50/10' : 'border-transparent text-slate-400'}`}>
-                    Actual Results
-                </button>
-              </div>
-            )}
+            <button 
+                onClick={() => setTab('Plan')} 
+                className={`flex-1 py-4 font-black text-[11px] uppercase tracking-widest text-center transition border-b-2 ${tab === 'Plan' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-400 hover:text-slate-600'} ${!canEditPlan && !editEntry ? 'hidden' : ''}`}>
+                {editEntry ? 'Plan Details' : '1. Production Plan'}
+            </button>
+            <button 
+                onClick={() => setTab('Actual')} 
+                className={`flex-1 py-4 font-black text-[11px] uppercase tracking-widest text-center transition border-b-2 ${tab === 'Actual' ? 'border-emerald-50 text-emerald-600' : 'border-transparent text-slate-400 hover:text-slate-600'} ${!canEditActual ? 'hidden' : ''}`}>
+                {editEntry ? 'Actual Results' : '2. Record Actual'}
+            </button>
         </div>
 
         <div className="p-6 relative overflow-y-auto custom-scrollbar flex-1">
@@ -249,7 +243,14 @@ export const InputModal: React.FC<InputModalProps> = ({ onClose, editEntry }) =>
             <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                     <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Production Date</label>
-                    <input type="date" required value={date} onChange={e => setDate(e.target.value)} className={inputClasses} />
+                    <input 
+                      type="date" 
+                      required 
+                      value={date} 
+                      onChange={e => setDate(e.target.value)} 
+                      className={inputClasses} 
+                      disabled={editEntry && !canEditPlan}
+                    />
                     
                     {holidayInfo && (
                       <div className={`mt-3 p-3 border rounded-xl flex items-center gap-3 shadow-sm ${
@@ -281,36 +282,73 @@ export const InputModal: React.FC<InputModalProps> = ({ onClose, editEntry }) =>
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Category</label>
-                                <select value={category} onChange={e => setCategory(e.target.value as Category)} className={inputClasses}>
+                                <select 
+                                  value={category} 
+                                  onChange={e => setCategory(e.target.value as Category)} 
+                                  className={inputClasses}
+                                  disabled={editEntry && !canEditPlan}
+                                >
                                     {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                                 </select>
                             </div>
                             <div>
                                 <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Process</label>
-                                <select value={process} onChange={e => setProcess(e.target.value as ProcessType)} className={inputClasses}>
+                                <select 
+                                  value={process} 
+                                  onChange={e => setProcess(e.target.value as ProcessType)} 
+                                  className={inputClasses}
+                                  disabled={editEntry && !canEditPlan}
+                                >
                                     {availableProcesses.map(p => <option key={p} value={p}>{p}</option>)}
                                 </select>
                             </div>
                         </div>
                         <div>
                             <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Product Name</label>
-                            <input type="text" required value={productName} onChange={e => setProductName(e.target.value.toUpperCase())} className={inputClasses} placeholder="Enter product name..." />
+                            <input 
+                              type="text" 
+                              required 
+                              value={productName} 
+                              onChange={e => setProductName(e.target.value.toUpperCase())} 
+                              className={inputClasses} 
+                              placeholder="Enter product name..." 
+                              disabled={editEntry && !canEditPlan}
+                            />
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                             <div className="flex-1">
                                 <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Target Plan Qty</label>
-                                <input type="number" required min="1" value={quantity} onChange={e => setQuantity(e.target.value)} className={inputClasses} />
+                                <input 
+                                  type="number" 
+                                  required 
+                                  min="1" 
+                                  value={quantity} 
+                                  onChange={e => setQuantity(e.target.value)} 
+                                  className={inputClasses} 
+                                  disabled={editEntry && !canEditPlan}
+                                />
                             </div>
                             <div className="w-24">
                                 <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Unit</label>
-                                <select value={unit} onChange={e => setUnit(e.target.value as UnitType)} className={inputClasses}>
+                                <select 
+                                  value={unit} 
+                                  onChange={e => setUnit(e.target.value as UnitType)} 
+                                  className={inputClasses}
+                                  disabled={editEntry && !canEditPlan}
+                                >
                                     {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
                                 </select>
                             </div>
                         </div>
                         <div>
                             <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1 flex items-center gap-1.5"><MessageSquare className="w-3 h-3" /> Plan Remark</label>
-                            <textarea value={planRemark} onChange={e => setPlanRemark(e.target.value.toUpperCase())} className={`${inputClasses} h-20 resize-none font-medium text-xs`} placeholder="ADD PLANNING NOTES..." />
+                            <textarea 
+                              value={planRemark} 
+                              onChange={e => setPlanRemark(e.target.value.toUpperCase())} 
+                              className={`${inputClasses} h-20 resize-none font-medium text-xs`} 
+                              placeholder="ADD PLANNING NOTES..." 
+                              disabled={editEntry && !canEditPlan}
+                            />
                         </div>
                     </>
                 ) : (
@@ -345,11 +383,23 @@ export const InputModal: React.FC<InputModalProps> = ({ onClose, editEntry }) =>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="flex-1">
                                         <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Actual Result Qty</label>
-                                        <input type="number" required value={quantity} onChange={e => setQuantity(e.target.value)} className={inputClasses} />
+                                        <input 
+                                          type="number" 
+                                          required 
+                                          value={quantity} 
+                                          onChange={e => setQuantity(e.target.value)} 
+                                          className={inputClasses} 
+                                          disabled={!canEditActual}
+                                        />
                                     </div>
                                     <div className="w-24">
                                         <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Unit</label>
-                                        <select value={unit} onChange={e => setUnit(e.target.value as UnitType)} className={inputClasses}>
+                                        <select 
+                                          value={unit} 
+                                          onChange={e => setUnit(e.target.value as UnitType)} 
+                                          className={inputClasses}
+                                          disabled={!canEditActual}
+                                        >
                                             {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
                                         </select>
                                     </div>
@@ -357,16 +407,38 @@ export const InputModal: React.FC<InputModalProps> = ({ onClose, editEntry }) =>
                                 <div className="grid grid-cols-2 gap-4">
                                   <div className="col-span-2">
                                     <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Batch Number</label>
-                                    <input type="text" required value={batchNo} onChange={e => setBatchNo(e.target.value)} className={inputClasses} placeholder="Enter batch ID..." />
+                                    <input 
+                                      type="text" 
+                                      required 
+                                      value={batchNo} 
+                                      onChange={e => setBatchNo(e.target.value)} 
+                                      className={inputClasses} 
+                                      placeholder="Enter batch ID..." 
+                                      disabled={!canEditActual}
+                                    />
                                   </div>
                                   <div className="col-span-2">
                                     <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Manpower Used</label>
-                                    <input type="number" required step="0.01" value={manpower} onChange={e => setManpower(e.target.value)} className={inputClasses} />
+                                    <input 
+                                      type="number" 
+                                      required 
+                                      step="0.01" 
+                                      value={manpower} 
+                                      onChange={e => setManpower(e.target.value)} 
+                                      className={inputClasses} 
+                                      disabled={!canEditActual}
+                                    />
                                   </div>
                                 </div>
                                 <div>
                                     <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1 flex items-center gap-1.5"><MessageSquare className="w-3 h-3" /> Actual Remark</label>
-                                    <textarea value={actualRemark} onChange={e => setActualRemark(e.target.value.toUpperCase())} className={`${inputClasses} h-20 resize-none font-medium text-xs`} placeholder="ADD ACTUAL NOTES..." />
+                                    <textarea 
+                                      value={actualRemark} 
+                                      onChange={e => setActualRemark(e.target.value.toUpperCase())} 
+                                      className={`${inputClasses} h-20 resize-none font-medium text-xs`} 
+                                      placeholder="ADD ACTUAL NOTES..." 
+                                      disabled={!canEditActual}
+                                    />
                                 </div>
                             </div>
                         )}
@@ -375,7 +447,7 @@ export const InputModal: React.FC<InputModalProps> = ({ onClose, editEntry }) =>
 
                 <button 
                     type="submit" 
-                    disabled={isSubmitting || (tab === 'Actual' && !selectedPlanId && !editEntry)} 
+                    disabled={isSubmitting || (tab === 'Actual' && !selectedPlanId && !editEntry) || (editEntry && tab === 'Actual' && !canEditActual) || (editEntry && tab === 'Plan' && !canEditPlan)} 
                     className={`w-full py-4 rounded-xl font-black text-xs uppercase tracking-[0.2em] text-white mt-4 shadow-xl transition hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed ${
                         tab === 'Plan' ? 'bg-slate-900 dark:bg-indigo-600' : 'bg-emerald-600'
                     }`}
