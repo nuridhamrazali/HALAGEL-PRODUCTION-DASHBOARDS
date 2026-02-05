@@ -1,3 +1,4 @@
+
 import React, { useMemo, useState } from 'react';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { StorageService } from '../../services/storageService';
@@ -37,10 +38,19 @@ export const ProcessAnalytics: React.FC = () => {
   const processMetrics = useMemo(() => {
     const metrics: Record<string, { process: string, plan: number, actual: number, efficiency: number, count: number }> = {};
     
-    // Determine which processes are valid for the selected category
-    const validProcesses = ['Toothpaste', 'Rocksalt', 'Cosmetic'].includes(selectedCategory)
-      ? PROCESSES.filter(p => p !== 'Encapsulation')
-      : [...PROCESSES];
+    // Determine valid processes for the current filter context
+    let validProcesses = [...PROCESSES] as string[];
+    if (selectedCategory !== 'All' && selectedCategory !== 'Healthcare') {
+      validProcesses = PROCESSES.filter(p => !['Encapsulation', 'Blister', 'Capsules'].includes(p));
+      
+      if (selectedCategory === 'Rocksalt') {
+        validProcesses = validProcesses.filter(p => p !== 'Mixing' && p !== 'Sorting');
+      } else if (selectedCategory === 'Toothpaste') {
+        validProcesses = validProcesses.filter(p => p !== 'Filling' && p !== 'Sorting');
+      } else if (selectedCategory === 'Cosmetic') {
+        validProcesses = validProcesses.filter(p => p !== 'Sorting');
+      }
+    }
 
     validProcesses.forEach(p => {
       metrics[p] = { process: p, plan: 0, actual: 0, efficiency: 0, count: 0 };
@@ -90,7 +100,6 @@ export const ProcessAnalytics: React.FC = () => {
 
   return (
     <div className="space-y-8 pb-20 animate-in fade-in duration-700">
-      {/* PROFESSIONAL HEADER BAR */}
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6">
         <div>
           <div className="flex items-center gap-2 mb-1">
@@ -137,7 +146,6 @@ export const ProcessAnalytics: React.FC = () => {
         </div>
       </div>
 
-      {/* EXECUTIVE SCORECARDS */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-gray-100 dark:border-slate-700 shadow-sm relative overflow-hidden group">
             <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform duration-500">
@@ -196,25 +204,12 @@ export const ProcessAnalytics: React.FC = () => {
         </div>
       </div>
 
-      {/* CORE VISUALIZATION GRID */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
-        {/* Composed Performance Chart */}
         <div className="lg:col-span-2 bg-white dark:bg-slate-800 p-8 rounded-[3rem] shadow-xl shadow-slate-200/50 dark:shadow-none border border-gray-100 dark:border-slate-700">
           <div className="flex items-center justify-between mb-10">
             <div>
               <h3 className="text-xl font-black text-slate-900 dark:text-white">Throughput vs Efficiency</h3>
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Correlation analysis across manufacturing nodes</p>
-            </div>
-            <div className="hidden sm:flex items-center gap-6">
-                <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full bg-indigo-600"></div>
-                    <span className="text-[10px] font-black text-slate-400 uppercase">Output</span>
-                </div>
-                <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full bg-rose-500"></div>
-                    <span className="text-[10px] font-black text-slate-400 uppercase">Eff. %</span>
-                </div>
             </div>
           </div>
           
@@ -274,7 +269,6 @@ export const ProcessAnalytics: React.FC = () => {
           </div>
         </div>
 
-        {/* Process Node List - Right Column */}
         <div className="space-y-6">
             <div className="bg-indigo-600 p-8 rounded-[3rem] text-white shadow-xl shadow-indigo-200">
                 <h3 className="text-xl font-black mb-1">Process Nodes</h3>
@@ -297,127 +291,16 @@ export const ProcessAnalytics: React.FC = () => {
                         </div>
                     ))}
                 </div>
-                
-                <button className="w-full mt-10 py-4 bg-white/10 hover:bg-white/20 rounded-2xl border border-white/20 text-[10px] font-black uppercase tracking-[0.3em] transition-all flex items-center justify-center gap-2">
-                    <MousePointer2 className="w-3 h-3" /> View Full Network
-                </button>
             </div>
 
             <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-gray-100 dark:border-slate-700">
                 <div className="flex items-center gap-3 mb-6">
                     <Zap className="w-5 h-5 text-amber-500" />
-                    <h3 className="text-lg font-black text-slate-900 dark:text-white">Quick Insight</h3>
+                    <h3 className="text-lg font-black text-slate-900 dark:text-white">Process Guard</h3>
                 </div>
                 <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed font-medium">
-                    The <span className="font-black text-indigo-600 dark:text-indigo-400">{aggregateMetrics.peakProcess?.process || 'Main'}</span> node is operating at peak capacity. Overall manufacturing velocity is <span className="font-black text-emerald-500">Nominal</span> for this period.
+                    The <span className="font-black text-indigo-600 dark:text-indigo-400">{selectedCategory === 'All' ? 'Manufacturing' : selectedCategory}</span> portfolio is undergoing deep scan. Process selection is restricted based on specific department capabilities.
                 </p>
-            </div>
-        </div>
-      </div>
-
-      {/* TREND ANALYSIS & DETAILED MATRIX */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-        
-        {/* Momentum Area Chart */}
-        <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-gray-100 dark:border-slate-700 shadow-sm">
-            <div className="flex items-center justify-between mb-10">
-                <div>
-                    <h3 className="text-xl font-black text-slate-900 dark:text-white">Production Momentum</h3>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Efficiency trajectory over selected timeline</p>
-                </div>
-                <TrendingUp className="w-6 h-6 text-indigo-500/20" />
-            </div>
-
-            <div className="h-72 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={dailyTrendData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-                        <defs>
-                            <linearGradient id="colorMomentum" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#6366f1" stopOpacity={0.2}/>
-                                <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
-                            </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDarkMode ? '#334155' : '#f1f5f9'} />
-                        <XAxis 
-                          dataKey="date" 
-                          axisLine={false} 
-                          tickLine={false} 
-                          tick={{ fontSize: 10, fontWeight: 900, fill: '#94a3b8' }} 
-                          dy={10} 
-                        />
-                        <YAxis 
-                          axisLine={false} 
-                          tickLine={false} 
-                          tick={{ fontSize: 10, fontWeight: 900, fill: '#94a3b8' }} 
-                        />
-                        <Tooltip 
-                            contentStyle={{ backgroundColor: isDarkMode ? '#1e293b' : '#fff', borderRadius: '24px', border: 'none', boxShadow: '0 25px 50px -12px rgb(0 0 0 / 0.25)' }}
-                        />
-                        <Area 
-                          type="monotone" 
-                          dataKey="efficiency" 
-                          stroke="#6366f1" 
-                          strokeWidth={4} 
-                          fillOpacity={1} 
-                          fill="url(#colorMomentum)" 
-                        />
-                    </AreaChart>
-                </ResponsiveContainer>
-            </div>
-        </div>
-
-        {/* Professional Efficiency Matrix */}
-        <div className="bg-white dark:bg-slate-800 rounded-[3rem] border border-gray-100 dark:border-slate-700 shadow-sm overflow-hidden flex flex-col">
-            <div className="p-8 border-b border-gray-50 dark:border-slate-700 flex items-center justify-between bg-gray-50/50 dark:bg-slate-900/50">
-                <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Efficiency Matrix</h3>
-                <div className="flex items-center gap-2 text-[9px] font-black text-slate-400 uppercase tracking-widest px-4 py-2 bg-white dark:bg-slate-800 rounded-full border border-gray-100 dark:border-slate-700 shadow-sm">
-                    <MousePointer2 className="w-3 h-3" /> Data Density: High
-                </div>
-            </div>
-            
-            <div className="overflow-x-auto flex-1 custom-scrollbar">
-                <table className="w-full text-left">
-                    <thead>
-                        <tr className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] bg-white dark:bg-slate-800 border-b dark:border-slate-700">
-                            <th className="px-8 py-5">Manufacturing Node</th>
-                            <th className="px-8 py-5">Throughput</th>
-                            <th className="px-8 py-5">Efficiency</th>
-                            <th className="px-8 py-5 text-right">Status</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-50 dark:divide-slate-700">
-                        {processMetrics.map((m, idx) => (
-                            <tr key={m.process} className="hover:bg-indigo-50/20 dark:hover:bg-indigo-900/10 transition-colors group">
-                                <td className="px-8 py-6">
-                                    <div className="flex items-center gap-3">
-                                        <div className={`w-1.5 h-6 rounded-full ${m.efficiency >= 95 ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : m.efficiency >= 85 ? 'bg-indigo-500' : 'bg-rose-500'}`} />
-                                        <span className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-tight">{m.process}</span>
-                                    </div>
-                                </td>
-                                <td className="px-8 py-6">
-                                    <div className="font-mono font-black text-slate-700 dark:text-slate-300">{m.actual.toLocaleString()} <span className="text-[10px] opacity-40">VOL</span></div>
-                                </td>
-                                <td className="px-8 py-6">
-                                    <div className="flex items-center gap-4">
-                                        <span className="text-sm font-black text-slate-900 dark:text-white font-mono w-12">{m.efficiency}%</span>
-                                        <div className="w-24 h-1.5 bg-gray-100 dark:bg-slate-700 rounded-full hidden sm:block">
-                                            <div className={`h-full rounded-full transition-all duration-700 ${m.efficiency >= 90 ? 'bg-indigo-500' : 'bg-rose-500'}`} style={{ width: `${Math.min(m.efficiency, 100)}%` }} />
-                                        </div>
-                                    </div>
-                                </td>
-                                <td className="px-8 py-6 text-right">
-                                    <span className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest ${
-                                        m.efficiency >= 95 ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
-                                        m.efficiency >= 85 ? 'bg-indigo-50 text-indigo-600 border border-indigo-100' :
-                                        'bg-rose-50 text-rose-600 border border-rose-100'
-                                    }`}>
-                                        {m.efficiency >= 95 ? 'Peak' : m.efficiency >= 85 ? 'Nominal' : 'Audit'}
-                                    </span>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
             </div>
         </div>
       </div>
