@@ -1,3 +1,4 @@
+
 export type Role = 'admin' | 'manager' | 'hod' | 'planner' | 'operator';
 
 export interface User {
@@ -15,7 +16,7 @@ export type Category = 'Healthcare' | 'Toothpaste' | 'Rocksalt' | 'Cosmetic';
 
 export type ProcessType = 'Mixing' | 'Encapsulation' | 'Filling' | 'Sorting' | 'Packing' | 'Blister' | 'Capsules';
 
-export type UnitType = 'KG' | 'PCS' | 'CARTON' | 'BTL' | 'BOX' | 'PAX' | 'TUBE';
+export type UnitType = 'KG' | 'PCS' | 'CARTON' | 'BTL' | 'BOX' | 'PAX' | 'TUBE' | 'BLISTER';
 
 export type ProductionStatus = 'In Progress' | 'Completed';
 
