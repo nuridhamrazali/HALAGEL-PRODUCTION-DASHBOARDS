@@ -1,9 +1,10 @@
+
 import { User, ProductionEntry, OffDay, OffDayType } from './types';
 import { getTodayISO, getDbTimestamp } from './utils/dateUtils';
 
 export const CATEGORIES = ['Healthcare', 'Toothpaste', 'Rocksalt', 'Cosmetic'] as const;
 export const PROCESSES = ['Mixing', 'Encapsulation', 'Filling', 'Sorting', 'Packing', 'Blister', 'Capsules'] as const;
-export const UNITS = ['KG', 'PCS', 'CARTON', 'BTL', 'BOX', 'PAX', 'TUBE'] as const;
+export const UNITS = ['KG', 'PCS', 'CARTON', 'BTL', 'BOX', 'PAX', 'TUBE', 'BLISTER'] as const;
 export const OFF_DAY_TYPES: OffDayType[] = ['Public Holiday', 'Rest Day', 'Off Day'];
 
 // Friday (5) is Rest Day, Saturday (6) is Off Day
@@ -15,11 +16,10 @@ export const DEFAULT_AVATARS = {
 };
 
 export const INITIAL_USERS: User[] = [
-  { id: 'u1', name: 'Admin User', username: 'admin', email: 'admin@halagel.com', role: 'admin', password: 'password123' },
-  { id: 'u2', name: 'Manager User', username: 'manager', email: 'manager@halagel.com', role: 'manager', password: 'password123' },
-  { id: 'u3', name: 'Planner User', username: 'planner', email: 'planner@halagel.com', role: 'planner', password: 'password123' },
-  { id: 'u3', name: 'Planner User', username: 'Umaira', email: 'umaira@halagel.com', role: 'planner', password: 'pass123' },
-  { id: 'u4', name: 'Operator User', username: 'operator', email: 'operator@halagel.com', role: 'operator', password: 'password123' },
+  { id: 'u1', name: 'Admin User', username: 'admin', email: 'admin@nexus.com', role: 'admin', password: 'password123' },
+  { id: 'u2', name: 'Manager User', username: 'manager', email: 'manager@nexus.com', role: 'manager', password: 'password123' },
+  { id: 'u3', name: 'Planner User', username: 'planner', email: 'planner@nexus.com', role: 'planner', password: 'password123' },
+  { id: 'u4', name: 'Operator User', username: 'operator', email: 'operator@nexus.com', role: 'operator', password: 'password123' },
 ];
 
 export const INITIAL_OFF_DAYS: OffDay[] = [
