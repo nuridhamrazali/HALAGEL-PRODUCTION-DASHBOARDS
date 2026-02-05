@@ -45,9 +45,21 @@ export const Dashboard: React.FC = () => {
     let selectedMonthActual = 0;
     const selectedMonthProcessMap = new Map<string, {process: string, Plan: number, Actual: number}>();
     
-    const validProcesses = category === 'Healthcare' 
-      ? [...PROCESSES] 
-      : PROCESSES.filter(p => !['Encapsulation', 'Blister', 'Capsules'].includes(p));
+    // STRICT PROCESS FILTERING FOR DASHBOARD CARDS
+    let validProcesses: string[] = [...PROCESSES];
+    if (category !== 'Healthcare') {
+      // Base non-healthcare exclusions
+      validProcesses = validProcesses.filter(p => !['Encapsulation', 'Blister', 'Capsules'].includes(p));
+      
+      // Department-specific exclusions
+      if (category === 'Rocksalt') {
+        validProcesses = validProcesses.filter(p => p !== 'Mixing' && p !== 'Sorting');
+      } else if (category === 'Toothpaste') {
+        validProcesses = validProcesses.filter(p => p !== 'Filling' && p !== 'Sorting');
+      } else if (category === 'Cosmetic') {
+        validProcesses = validProcesses.filter(p => p !== 'Sorting');
+      }
+    }
 
     validProcesses.forEach(proc => {
       selectedMonthProcessMap.set(proc, { process: proc, Plan: 0, Actual: 0 });
@@ -294,7 +306,7 @@ export const Dashboard: React.FC = () => {
                             </div>
                             {group.entries.length > 0 && (
                               <div className={`px-2.5 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-tighter border shadow-sm ${
-                                allCompleted ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-amber-50 text-amber-600 border-amber-100'
+                                allCompleted ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-amber-50 text-emerald-600 border-emerald-100'
                               }`}>
                                 {allCompleted ? 'All Jobs Completed' : 'Production In Progress'}
                               </div>
