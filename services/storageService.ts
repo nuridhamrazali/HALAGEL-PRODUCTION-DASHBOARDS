@@ -75,7 +75,7 @@ const setWriteLock = () => {
 
 const isWriteLocked = () => {
   const lastWrite = parseInt(localStorage.getItem(KEYS.LAST_WRITE) || '0');
-  // Extended lock for older computers (1 minute)
+  // Extended lock for older computers (1 minute) to ensure sheet write finishes
   return (Date.now() - lastWrite) < 60000; 
 };
 
@@ -90,11 +90,11 @@ const reconcileData = <T extends { id: string, updatedAt?: string }>(local: T[],
   const now = Date.now();
   const result: T[] = [];
 
-  // 1. Process all Cloud items (They are the source of truth)
+  // 1. Process all Cloud items (They are the source of truth for existing data)
   cloud.forEach(cloudItem => {
     const localItem = local.find(l => String(l.id) === String(cloudItem.id));
     if (localItem && localItem.updatedAt && cloudItem.updatedAt && localItem.updatedAt > cloudItem.updatedAt) {
-      // Local is newer (user modified it while offline)
+      // Local is newer (user modified it while offline/between syncs)
       result.push(localItem);
     } else {
       // Cloud is newer or same
@@ -105,11 +105,16 @@ const reconcileData = <T extends { id: string, updatedAt?: string }>(local: T[],
   // 2. Handle Local-Only items (Potential New items OR Deleted-In-Cloud items)
   local.forEach(localItem => {
     if (!cloudMap.has(String(localItem.id))) {
-      const updatedAtTime = localItem.updatedAt ? new Date(localItem.updatedAt.replace(' ', 'T')).getTime() : 0;
-      const ageInMinutes = (now - updatedAtTime) / (1000 * 60);
+      // Check age of the local-only record
+      const updatedAtStr = localItem.updatedAt || '';
+      const updatedAtTime = updatedAtStr.includes(' ') 
+        ? new Date(updatedAtStr.replace(' ', 'T')).getTime() 
+        : new Date(updatedAtStr).getTime();
+        
+      const ageInMinutes = isNaN(updatedAtTime) ? 999 : (now - updatedAtTime) / (1000 * 60);
 
-      // If the item is very new (created < 10 mins ago), it's probably waiting to sync up.
-      // If it's old and NOT in the cloud, it was definitely deleted on another computer.
+      // If the item is very new (created < 10 mins ago), it's probably a local entry waiting to sync up.
+      // If it's old and NOT in the cloud, it was likely deleted on another computer and should be removed locally.
       if (ageInMinutes < 10) {
         result.push(localItem);
       }
@@ -161,10 +166,16 @@ export const StorageService = {
     const data = StorageService.getProductionData();
     const targetItem = data.find(p => String(p.id) === String(id)) || null;
     const updatedData = data.filter(p => String(p.id) !== String(id));
+    
+    // Set write lock to prevent sync from bringing it back immediately
+    setWriteLock();
+    
     // Immediately save locally
     localStorage.setItem(KEYS.PRODUCTION, JSON.stringify(updatedData));
+    
     // Save to cloud
-    await StorageService.saveProductionData(updatedData);
+    await GoogleSheetsService.saveData('saveProduction', updatedData);
+    
     return { updatedData, deletedItem: targetItem };
   },
   
