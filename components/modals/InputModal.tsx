@@ -249,7 +249,7 @@ export const InputModal: React.FC<InputModalProps> = ({ onClose, editEntry }) =>
                       value={date} 
                       onChange={e => setDate(e.target.value)} 
                       className={inputClasses} 
-                      disabled={editEntry && !canEditPlan}
+                      disabled={!!editEntry && !canEditPlan}
                     />
                     
                     {holidayInfo && (
@@ -286,7 +286,7 @@ export const InputModal: React.FC<InputModalProps> = ({ onClose, editEntry }) =>
                                   value={category} 
                                   onChange={e => setCategory(e.target.value as Category)} 
                                   className={inputClasses}
-                                  disabled={editEntry && !canEditPlan}
+                                  disabled={!!editEntry && !canEditPlan}
                                 >
                                     {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                                 </select>
@@ -297,7 +297,7 @@ export const InputModal: React.FC<InputModalProps> = ({ onClose, editEntry }) =>
                                   value={process} 
                                   onChange={e => setProcess(e.target.value as ProcessType)} 
                                   className={inputClasses}
-                                  disabled={editEntry && !canEditPlan}
+                                  disabled={!!editEntry && !canEditPlan}
                                 >
                                     {availableProcesses.map(p => <option key={p} value={p}>{p}</option>)}
                                 </select>
@@ -312,7 +312,7 @@ export const InputModal: React.FC<InputModalProps> = ({ onClose, editEntry }) =>
                               onChange={e => setProductName(e.target.value.toUpperCase())} 
                               className={inputClasses} 
                               placeholder="Enter product name..." 
-                              disabled={editEntry && !canEditPlan}
+                              disabled={!!editEntry && !canEditPlan}
                             />
                         </div>
                         <div className="grid grid-cols-2 gap-4">
@@ -325,7 +325,7 @@ export const InputModal: React.FC<InputModalProps> = ({ onClose, editEntry }) =>
                                   value={quantity} 
                                   onChange={e => setQuantity(e.target.value)} 
                                   className={inputClasses} 
-                                  disabled={editEntry && !canEditPlan}
+                                  disabled={!!editEntry && !canEditPlan}
                                 />
                             </div>
                             <div className="w-24">
@@ -334,7 +334,7 @@ export const InputModal: React.FC<InputModalProps> = ({ onClose, editEntry }) =>
                                   value={unit} 
                                   onChange={e => setUnit(e.target.value as UnitType)} 
                                   className={inputClasses}
-                                  disabled={editEntry && !canEditPlan}
+                                  disabled={!!editEntry && !canEditPlan}
                                 >
                                     {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
                                 </select>
@@ -347,7 +347,7 @@ export const InputModal: React.FC<InputModalProps> = ({ onClose, editEntry }) =>
                               onChange={e => setPlanRemark(e.target.value.toUpperCase())} 
                               className={`${inputClasses} h-20 resize-none font-medium text-xs`} 
                               placeholder="ADD PLANNING NOTES..." 
-                              disabled={editEntry && !canEditPlan}
+                              disabled={!!editEntry && !canEditPlan}
                             />
                         </div>
                     </>
@@ -447,7 +447,7 @@ export const InputModal: React.FC<InputModalProps> = ({ onClose, editEntry }) =>
 
                 <button 
                     type="submit" 
-                    disabled={isSubmitting || (tab === 'Actual' && !selectedPlanId && !editEntry) || (editEntry && tab === 'Actual' && !canEditActual) || (editEntry && tab === 'Plan' && !canEditPlan)} 
+                    disabled={isSubmitting || (tab === 'Actual' && !selectedPlanId && !editEntry) || (!!editEntry && tab === 'Actual' && !canEditActual) || (!!editEntry && tab === 'Plan' && !canEditPlan)} 
                     className={`w-full py-4 rounded-xl font-black text-xs uppercase tracking-[0.2em] text-white mt-4 shadow-xl transition hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed ${
                         tab === 'Plan' ? 'bg-slate-900 dark:bg-indigo-600' : 'bg-emerald-600'
                     }`}
