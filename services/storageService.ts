@@ -1,9 +1,8 @@
 
-import { User, ProductionEntry, OffDay, ActivityLog, UnitType, ProductionStatus, OffDayType } from '../types';
+import { User, ProductionEntry, OffDay, ActivityLog, UnitType, ProductionStatus } from '../types';
 import { INITIAL_USERS, INITIAL_OFF_DAYS, UNITS } from '../constants';
 import { GoogleSheetsService } from './googleSheetsService';
 import { getDbTimestamp } from '../utils/dateUtils';
-import { sanitizeInput } from '../utils/securityUtils';
 
 const KEYS = {
   USERS: 'halagel_users',
@@ -31,17 +30,17 @@ const normalizeProduction = (data: any): ProductionEntry => {
       date: String(data[1] || '').split(' ')[0],
       category: String(data[2] || 'Healthcare') as any,
       process: String(data[3] || 'Mixing') as any,
-      productName: sanitizeInput(String(data[4] || 'Unknown')),
+      productName: String(data[4] || 'Unknown'),
       planQuantity: Number(data[5] || 0),
       actualQuantity: actualQty,
       unit: normalizeUnit(data[7]),
-      batchNo: sanitizeInput(String(data[8] || '')),
+      batchNo: String(data[8] || ''),
       manpower: Number(data[9] || 0),
       lastUpdatedBy: String(data[10] || ''),
       updatedAt: String(data[11] || getDbTimestamp()),
-      remark: sanitizeInput(String(data[12] || '')),
-      planRemark: sanitizeInput(String(data[13] || '')),
-      actualRemark: sanitizeInput(String(data[14] || '')),
+      remark: String(data[12] || ''),
+      planRemark: String(data[13] || ''),
+      actualRemark: String(data[14] || ''),
       status: (data[15] as ProductionStatus) || (actualQty > 0 ? 'Completed' : 'In Progress')
     };
   } else {
@@ -49,8 +48,8 @@ const normalizeProduction = (data: any): ProductionEntry => {
       ...data,
       id: String(data.id || Date.now()),
       date: String(data.date || '').split(' ')[0],
-      productName: sanitizeInput(String(data.productName || '')),
-      batchNo: sanitizeInput(String(data.batchNo || '')),
+      productName: String(data.productName || ''),
+      batchNo: String(data.batchNo || ''),
       planQuantity: Number(data.planQuantity || 0),
       actualQuantity: Number(data.actualQuantity || 0),
       unit: normalizeUnit(data.unit),
@@ -62,8 +61,8 @@ const normalizeProduction = (data: any): ProductionEntry => {
 
 const normalizeUser = (u: any): User => ({
   id: String(u.id || ''),
-  name: sanitizeInput(String(u.name || '')),
-  username: sanitizeInput(String(u.username || '')).toLowerCase(),
+  name: String(u.name || ''),
+  username: String(u.username || '').toLowerCase(),
   role: (u.role || 'operator') as any,
   password: String(u.password || ''),
   avatar: String(u.avatar || '')
@@ -75,7 +74,6 @@ const setWriteLock = () => {
 
 const isWriteLocked = () => {
   const lastWrite = parseInt(localStorage.getItem(KEYS.LAST_WRITE) || '0');
-  // Extended lock for older computers (1 minute) to ensure sheet write finishes
   return (Date.now() - lastWrite) < 60000; 
 };
 
@@ -94,10 +92,8 @@ const reconcileData = <T extends { id: string, updatedAt?: string }>(local: T[],
   cloud.forEach(cloudItem => {
     const localItem = local.find(l => String(l.id) === String(cloudItem.id));
     if (localItem && localItem.updatedAt && cloudItem.updatedAt && localItem.updatedAt > cloudItem.updatedAt) {
-      // Local is newer (user modified it while offline/between syncs)
       result.push(localItem);
     } else {
-      // Cloud is newer or same
       result.push(cloudItem);
     }
   });
@@ -105,7 +101,6 @@ const reconcileData = <T extends { id: string, updatedAt?: string }>(local: T[],
   // 2. Handle Local-Only items (Potential New items OR Deleted-In-Cloud items)
   local.forEach(localItem => {
     if (!cloudMap.has(String(localItem.id))) {
-      // Check age of the local-only record
       const updatedAtStr = localItem.updatedAt || '';
       const updatedAtTime = updatedAtStr.includes(' ') 
         ? new Date(updatedAtStr.replace(' ', 'T')).getTime() 
@@ -113,8 +108,7 @@ const reconcileData = <T extends { id: string, updatedAt?: string }>(local: T[],
         
       const ageInMinutes = isNaN(updatedAtTime) ? 999 : (now - updatedAtTime) / (1000 * 60);
 
-      // If the item is very new (created < 10 mins ago), it's probably a local entry waiting to sync up.
-      // If it's old and NOT in the cloud, it was likely deleted on another computer and should be removed locally.
+      // Only keep local items if they were created/updated recently (< 10 mins)
       if (ageInMinutes < 10) {
         result.push(localItem);
       }
@@ -167,13 +161,8 @@ export const StorageService = {
     const targetItem = data.find(p => String(p.id) === String(id)) || null;
     const updatedData = data.filter(p => String(p.id) !== String(id));
     
-    // Set write lock to prevent sync from bringing it back immediately
     setWriteLock();
-    
-    // Immediately save locally
     localStorage.setItem(KEYS.PRODUCTION, JSON.stringify(updatedData));
-    
-    // Save to cloud
     await GoogleSheetsService.saveData('saveProduction', updatedData);
     
     return { updatedData, deletedItem: targetItem };
@@ -223,7 +212,6 @@ export const StorageService = {
       }
 
       if (results[3] && Array.isArray(results[3])) {
-        // Simple overwrite for logs as they are append-only mostly
         localStorage.setItem(KEYS.LOGS, JSON.stringify(results[3].slice(0, 500)));
       }
     } catch (err) {
