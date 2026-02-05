@@ -8,9 +8,6 @@ import { ProductionEntry, Category, ProcessType, UnitType } from '../../types';
 import { AlertCircle, CheckCircle2, Palmtree, MessageSquare } from 'lucide-react';
 import { getTodayISO } from '../../utils/dateUtils';
 
-// Added explicit interface for form state to prevent TypeScript from inferring 
-// strict string literal types (like "Healthcare" instead of Category union) 
-// from the initial state values derived from constants.
 interface PlanFormState {
   date: string;
   category: Category;
@@ -25,8 +22,6 @@ export const InputPlan: React.FC = () => {
   const { user } = useAuth();
   const { triggerRefresh } = useDashboard();
   
-  // Fix: Explicitly type useState with PlanFormState and cast initial constant values 
-  // to their respective union types to avoid narrow literal inference.
   const [formData, setFormData] = useState<PlanFormState>({
     date: getTodayISO(),
     category: CATEGORIES[0] as Category,
@@ -49,11 +44,20 @@ export const InputPlan: React.FC = () => {
     }
   }, [currentOffDay]);
 
-  // Fix: Added explicit casting to ProcessType[] to ensure the resulting array 
-  // is compatible with formData.process type.
   const availableProcesses = useMemo(() => {
     if (formData.category === 'Healthcare') return [...PROCESSES] as ProcessType[];
-    return PROCESSES.filter(p => !['Encapsulation', 'Blister', 'Capsules'].includes(p)) as ProcessType[];
+    
+    let filtered = PROCESSES.filter(p => !['Encapsulation', 'Blister', 'Capsules'].includes(p));
+    
+    if (formData.category === 'Rocksalt') {
+      filtered = filtered.filter(p => p !== 'Mixing' && p !== 'Sorting');
+    } else if (formData.category === 'Toothpaste') {
+      filtered = filtered.filter(p => p !== 'Filling' && p !== 'Sorting');
+    } else if (formData.category === 'Cosmetic') {
+      filtered = filtered.filter(p => p !== 'Sorting');
+    }
+    
+    return filtered as ProcessType[];
   }, [formData.category]);
 
   useEffect(() => {
