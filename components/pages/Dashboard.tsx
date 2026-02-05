@@ -326,7 +326,7 @@ export const Dashboard: React.FC = () => {
                                         <th className="px-8 py-4 text-center font-black uppercase text-[10px] tracking-widest">Efficiency</th>
                                         <th className="px-8 py-4 text-center font-black uppercase text-[10px] tracking-widest">Batch No</th>
                                         <th className="px-8 py-4 text-center font-black uppercase text-[10px] tracking-widest">Manpower</th>
-                                        {hasPermission(['admin', 'manager', 'hod']) && <th className="px-8 py-4 text-center font-black uppercase text-[10px] tracking-widest">Action</th>}
+                                        {hasPermission(['admin', 'manager', 'hod', 'planner']) && <th className="px-8 py-4 text-center font-black uppercase text-[10px] tracking-widest">Action</th>}
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-50 dark:divide-slate-800/30">
@@ -346,7 +346,7 @@ export const Dashboard: React.FC = () => {
                                                 </td>
                                                 <td className="px-8 py-5 text-right font-black font-mono text-emerald-500 text-sm">
                                                     <div>{(entry.actualQuantity || 0).toLocaleString()} <span className="text-[9px] ml-1 opacity-60 font-sans">{entry.unit}</span></div>
-                                                    {entry.actualRemark && <div className="flex items-center justify-end gap-1 mt-1 opacity-70"><MessageSquare className="w-3 h-3 text-emerald-200" /><span className="text-[9px] font-medium text-emerald-400/80 italic max-w-[150px] truncate">{entry.actualRemark}</span></div>}
+                                                    {entry.actualRemark && <div className="flex items-center justify-end gap-1 mt-1 opacity-60"><MessageSquare className="w-3 h-3 text-emerald-200" /><span className="text-[9px] font-medium text-emerald-400/80 italic max-w-[150px] truncate">{entry.actualRemark}</span></div>}
                                                 </td>
                                                 <td className="px-8 py-5 text-center">
                                                     <span className={`text-sm font-black font-mono ${eff >= 100 ? 'text-emerald-500' : eff >= 75 ? 'text-amber-500' : 'text-rose-500'}`}>{(eff || 0).toFixed(0)}%</span>
@@ -357,7 +357,7 @@ export const Dashboard: React.FC = () => {
                                                 <td className="px-8 py-5 text-center">
                                                     <span className="text-base font-black text-slate-800 dark:text-white font-mono">{(entry.manpower || 0).toFixed(2)}</span>
                                                 </td>
-                                                {hasPermission(['admin', 'manager', 'hod']) && (
+                                                {hasPermission(['admin', 'manager', 'hod', 'planner']) && (
                                                   <td className="px-8 py-5 text-center">
                                                       <div className="flex items-center justify-center gap-2">
                                                           <button onClick={() => handleEdit(entry)} className="p-1.5 text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition"><Pencil className="w-4 h-4" /></button>
