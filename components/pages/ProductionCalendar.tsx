@@ -123,7 +123,18 @@ export const ProductionCalendar: React.FC = () => {
 
   const filteredProcesses = useMemo(() => {
     if (category === 'Healthcare') return [...PROCESSES];
-    return PROCESSES.filter(p => !['Encapsulation', 'Blister', 'Capsules'].includes(p));
+    
+    let filtered = PROCESSES.filter(p => !['Encapsulation', 'Blister', 'Capsules'].includes(p));
+    
+    if (category === 'Rocksalt') {
+      filtered = filtered.filter(p => p !== 'Mixing' && p !== 'Sorting');
+    } else if (category === 'Toothpaste') {
+      filtered = filtered.filter(p => p !== 'Filling' && p !== 'Sorting');
+    } else if (category === 'Cosmetic') {
+      filtered = filtered.filter(p => p !== 'Sorting');
+    }
+    
+    return filtered;
   }, [category]);
 
   const navigateDate = (direction: number) => {
