@@ -13,7 +13,8 @@ import {
   Plus,
   Info,
   ArrowLeftCircle,
-  ArrowRightCircle
+  ArrowRightCircle,
+  AlertCircle
 } from 'lucide-react';
 import { formatDisplayDate, getTodayISO, getWeeklyOffDayType, formatDateToDMY } from '../../utils/dateUtils';
 
@@ -260,69 +261,82 @@ export const ProductionCalendar: React.FC = () => {
 
                       return (
                         <td key={`${col.key}-${proc}`} className={`p-4 border-b-2 border-r-[3px] border-slate-200 dark:border-slate-700 relative align-top min-h-[160px] last:border-r-0 ${offType ? 'bg-slate-100/30 dark:bg-slate-900/30' : colors.tint}`}>
-                          {offType ? (
-                             <div className="h-full py-10 flex items-center justify-center opacity-10">
-                                <span className="text-[11px] font-black uppercase tracking-[0.3em] -rotate-12 border-2 border-current px-4 py-1.5 rounded-xl text-center leading-tight">
-                                  {manualOff?.description || (autoOff === 'Rest Day' ? 'Friday Rest' : 'Saturday Off')}
-                                </span>
-                             </div>
-                          ) : (
-                            <div className="space-y-4">
-                                {col.isAggregated && holidaysInPeriod > 0 && (
-                                  <div className="flex items-center gap-2 mb-2">
-                                    <div className="flex -space-x-1">
-                                      {[...Array(holidaysInPeriod)].map((_, i) => (
-                                        <div key={i} className="w-2 h-2 rounded-full bg-rose-500 shadow-sm border border-white" />
-                                      ))}
-                                    </div>
-                                    <span className="text-[8px] font-black text-rose-500 uppercase tracking-tighter">{holidaysInPeriod} Holiday(s)</span>
+                          <div className="space-y-4 relative z-10">
+                              {/* OFF-DAY WATERMARK (Subtle text in background) */}
+                              {offType && (
+                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.03] dark:opacity-[0.08] select-none z-0">
+                                   <span className="text-[18px] font-black uppercase tracking-[0.4em] -rotate-12 border-4 border-current px-6 py-2 rounded-2xl text-center leading-tight whitespace-nowrap">
+                                     {manualOff?.description || (autoOff === 'Rest Day' ? 'Rest Day' : 'Off Day')}
+                                   </span>
+                                </div>
+                              )}
+
+                              {col.isAggregated && holidaysInPeriod > 0 && (
+                                <div className="flex items-center gap-2 mb-2 relative z-10">
+                                  <div className="flex -space-x-1">
+                                    {[...Array(holidaysInPeriod)].map((_, i) => (
+                                      <div key={i} className="w-2 h-2 rounded-full bg-rose-500 shadow-sm border border-white" />
+                                    ))}
                                   </div>
-                                )}
-                                
-                                {entries.length > 0 ? (
-                                    entries.map(entry => (
-                                        <div key={entry.id} className={`p-4 rounded-[1.5rem] border-2 transition-all relative overflow-hidden group/card shadow-sm ${
-                                        entry.status === 'Completed' 
-                                            ? 'bg-emerald-50/50 border-emerald-500/30 dark:bg-emerald-900/10' 
-                                            : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700'
-                                        }`}>
-                                        <div className="flex justify-between items-start mb-2">
-                                            <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-md ${
-                                            entry.status === 'Completed' ? 'bg-emerald-500 text-white' : 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900 dark:text-indigo-300'
-                                            }`}>
-                                              {col.isAggregated ? formatDateToDMY(entry.date).split('-')[0] : ''} {entry.status === 'Completed' ? 'DONE' : 'PLAN'}
-                                            </span>
-                                            <span className="text-[9px] font-black font-mono text-slate-400">{entry.batchNo || '---'}</span>
-                                        </div>
-                                        <p className="text-[11px] font-black text-slate-800 dark:text-white leading-tight uppercase mb-2 break-words">
-                                          {entry.productName}
-                                        </p>
-                                        <div className="flex justify-between items-end border-t border-slate-50 dark:border-slate-700/50 pt-2">
-                                            <div className={`text-[10px] font-black ${colors.text}`}>
-                                              {entry.planQuantity} <span className="text-[8px] opacity-60 uppercase font-bold">{entry.unit}</span>
-                                            </div>
-                                            {entry.actualQuantity > 0 && (
-                                              <div className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 flex flex-col items-end leading-none">
-                                                  <span className="text-[7px] opacity-50 uppercase mb-0.5">Yield</span>
-                                                  {entry.actualQuantity}
+                                  <span className="text-[8px] font-black text-rose-500 uppercase tracking-tighter">{holidaysInPeriod} Holiday(s)</span>
+                                </div>
+                              )}
+                              
+                              {entries.length > 0 ? (
+                                  <div className="space-y-3 relative z-10">
+                                      {entries.map(entry => {
+                                          const entryOffType = col.isAggregated 
+                                            ? (offDays.find(od => od.date === entry.date)?.type || getWeeklyOffDayType(entry.date))
+                                            : offType;
+
+                                          return (
+                                              <div key={entry.id} className={`p-4 rounded-[1.5rem] border-2 transition-all relative overflow-hidden group/card shadow-sm ${
+                                              entry.status === 'Completed' 
+                                                  ? 'bg-emerald-50/50 border-emerald-500/30 dark:bg-emerald-900/10' 
+                                                  : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700'
+                                              }`}>
+                                              <div className="flex justify-between items-start mb-2">
+                                                  <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-md flex items-center gap-1 ${
+                                                  entry.status === 'Completed' 
+                                                    ? 'bg-emerald-500 text-white' 
+                                                    : (entryOffType ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900 dark:text-indigo-300')
+                                                  }`}>
+                                                    {entryOffType && <AlertCircle className="w-2 h-2" />}
+                                                    {col.isAggregated ? formatDateToDMY(entry.date).split('-')[0] : ''} {entryOffType ? 'OT ' : ''}{entry.status === 'Completed' ? 'DONE' : 'PLAN'}
+                                                  </span>
+                                                  <span className="text-[9px] font-black font-mono text-slate-400">{entry.batchNo || '---'}</span>
                                               </div>
-                                            )}
-                                        </div>
-                                        </div>
-                                    ))
-                                ) : (
-                                  <div className="h-12 flex items-center justify-center opacity-5 group-hover:opacity-20 transition-opacity">
-                                    <Info className="w-4 h-4 text-slate-400" />
+                                              <p className="text-[11px] font-black text-slate-800 dark:text-white leading-tight uppercase mb-2 break-words">
+                                                {entry.productName}
+                                              </p>
+                                              <div className="flex justify-between items-end border-t border-slate-50 dark:border-slate-700/50 pt-2">
+                                                  <div className={`text-[10px] font-black ${colors.text}`}>
+                                                    {entry.planQuantity} <span className="text-[8px] opacity-60 uppercase font-bold">{entry.unit}</span>
+                                                  </div>
+                                                  {entry.actualQuantity > 0 && (
+                                                    <div className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 flex flex-col items-end leading-none">
+                                                        <span className="text-[7px] opacity-50 uppercase mb-0.5">Actual</span>
+                                                        {entry.actualQuantity}
+                                                    </div>
+                                                  )}
+                                              </div>
+                                              </div>
+                                          );
+                                      })}
                                   </div>
-                                )}
-                                <button 
-                                  onClick={() => handleAddNewAt(col.startDate, proc)}
-                                  className={`w-full py-2 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:bg-white dark:hover:bg-slate-800/40 ${colors.text}`}
-                                >
-                                  <Plus className="w-3 h-3" />
-                                </button>
-                            </div>
-                          )}
+                              ) : !offType ? (
+                                <div className="h-12 flex items-center justify-center opacity-5 group-hover:opacity-20 transition-opacity">
+                                  <Info className="w-4 h-4 text-slate-400" />
+                                </div>
+                              ) : null}
+
+                              <button 
+                                onClick={() => handleAddNewAt(col.startDate, proc)}
+                                className={`w-full py-2 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:bg-white dark:hover:bg-slate-800/40 relative z-10 ${colors.text}`}
+                              >
+                                <Plus className="w-3 h-3" />
+                              </button>
+                          </div>
                         </td>
                       );
                     })}
