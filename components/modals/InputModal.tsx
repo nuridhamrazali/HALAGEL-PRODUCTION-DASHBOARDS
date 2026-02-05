@@ -5,8 +5,8 @@ import { useDashboard } from '../../contexts/DashboardContext';
 import { StorageService } from '../../services/storageService';
 import { CATEGORIES, PROCESSES, UNITS } from '../../constants';
 import { ProductionEntry, Category, ProcessType, UnitType, ProductionStatus, OffDay } from '../../types';
-import { X, Loader2, Palmtree, MessageSquare, Ban } from 'lucide-react';
-import { getTodayISO, getDbTimestamp } from '../../utils/dateUtils';
+import { X, Loader2, Palmtree, MessageSquare, Ban, AlertCircle, Building2 } from 'lucide-react';
+import { getTodayISO, getDbTimestamp, getWeeklyOffDayType } from '../../utils/dateUtils';
 
 interface InputModalProps {
   onClose: () => void;
@@ -35,12 +35,21 @@ export const InputModal: React.FC<InputModalProps> = ({ onClose, editEntry }) =>
 
   const offDays = useMemo(() => StorageService.getOffDays(), []);
   
-  const currentOffDay = useMemo(() => {
+  // Detection for both manual and automatic (Fri/Sat) off days
+  const holidayInfo = useMemo(() => {
     const inputDate = (date || '').trim().split(' ')[0];
-    return offDays.find((od: OffDay) => (od.date || '').trim().split(' ')[0] === inputDate);
+    const manual = offDays.find((od: OffDay) => (od.date || '').trim().split(' ')[0] === inputDate);
+    if (manual) return manual;
+    
+    const autoType = getWeeklyOffDayType(inputDate);
+    if (autoType) {
+        return {
+            type: autoType,
+            description: autoType === 'Rest Day' ? 'Friday Weekly Rest' : 'Saturday Weekly Off'
+        };
+    }
+    return null;
   }, [date, offDays]);
-
-  const isLocked = !editEntry && !!currentOffDay;
 
   const availableProcesses = useMemo(() => {
     if (category === 'Healthcare') return [...PROCESSES];
@@ -102,10 +111,14 @@ export const InputModal: React.FC<InputModalProps> = ({ onClose, editEntry }) =>
     }
   }, [date, tab, editEntry]);
 
+  // Derived filtered list of plans based on selected category in Actual tab
+  const filteredPlans = useMemo(() => {
+    if (tab !== 'Actual') return [];
+    return plans.filter(p => p.category === category);
+  }, [plans, category, tab]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isLocked) return;
-
     setIsSubmitting(true);
     const normalizedDate = (date || '').trim().split(' ')[0];
     const currentData = StorageService.getProductionData();
@@ -238,26 +251,26 @@ export const InputModal: React.FC<InputModalProps> = ({ onClose, editEntry }) =>
                     <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Production Date</label>
                     <input type="date" required value={date} onChange={e => setDate(e.target.value)} className={inputClasses} />
                     
-                    {currentOffDay && (
+                    {holidayInfo && (
                       <div className={`mt-3 p-3 border rounded-xl flex items-center gap-3 shadow-sm ${
-                        currentOffDay.type === 'Public Holiday' ? 'bg-rose-50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800' :
-                        currentOffDay.type === 'Rest Day' ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-800' :
+                        holidayInfo.type === 'Public Holiday' ? 'bg-rose-50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800' :
+                        holidayInfo.type === 'Rest Day' ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-800' :
                         'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800'
                       }`}>
                         <div className={`p-2 rounded-lg text-white ${
-                            currentOffDay.type === 'Public Holiday' ? 'bg-rose-500' :
-                            currentOffDay.type === 'Rest Day' ? 'bg-indigo-500' :
+                            holidayInfo.type === 'Public Holiday' ? 'bg-rose-500' :
+                            holidayInfo.type === 'Rest Day' ? 'bg-indigo-500' :
                             'bg-amber-500'
                         }`}>
                           <Ban className="w-4 h-4" />
                         </div>
                         <div className="flex-1">
                           <p className={`text-[10px] font-black uppercase tracking-widest leading-none mb-1 ${
-                                currentOffDay.type === 'Public Holiday' ? 'text-rose-600 dark:text-rose-400' :
-                                currentOffDay.type === 'Rest Day' ? 'text-indigo-600 dark:text-indigo-400' :
+                                holidayInfo.type === 'Public Holiday' ? 'text-rose-600 dark:text-rose-400' :
+                                holidayInfo.type === 'Rest Day' ? 'text-indigo-600 dark:text-indigo-400' :
                                 'text-amber-600 dark:text-amber-400'
-                          }`}>{currentOffDay.type}</p>
-                          <p className="text-xs font-black text-slate-900 dark:text-white leading-tight">{currentOffDay.description}</p>
+                          }`}>{holidayInfo.type} Alert</p>
+                          <p className="text-xs font-black text-slate-900 dark:text-white leading-tight">{holidayInfo.description}</p>
                         </div>
                       </div>
                     )}
@@ -303,23 +316,32 @@ export const InputModal: React.FC<InputModalProps> = ({ onClose, editEntry }) =>
                 ) : (
                     <>
                         {!editEntry && (
-                          <div className="mb-4">
-                               <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Select Pending Job</label>
-                               {plans.length === 0 ? <div className="text-xs text-slate-400 italic text-center p-6 border-2 border-dashed rounded-xl">No plans found for this date.</div> : (
-                                   <div className="max-h-40 overflow-y-auto border rounded-xl p-2 space-y-1 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
-                                       {plans.map(p => (
-                                           <div key={p.id} onClick={() => { setSelectedPlanId(p.id); setProductName(p.productName); setProcess(p.process); setCategory(p.category); }}
-                                              className={`p-3 rounded-lg cursor-pointer transition ${selectedPlanId === p.id ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800'}`}>
-                                              <div className="font-black text-sm">{p.productName}</div>
-                                              <div className={`text-[10px] font-bold uppercase ${selectedPlanId === p.id ? 'text-emerald-100' : 'text-slate-400'}`}>{p.process} • Plan: {p.planQuantity} {p.unit || 'KG'}</div>
-                                           </div>
-                                       ))}
-                                   </div>
-                               )}
+                          <div className="space-y-4">
+                               <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Filter by Department</label>
+                                    <select value={category} onChange={e => { setCategory(e.target.value as Category); setSelectedPlanId(''); }} className={inputClasses}>
+                                        {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                                    </select>
+                               </div>
+
+                               <div>
+                                   <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Select Pending Job</label>
+                                   {filteredPlans.length === 0 ? <div className="text-xs text-slate-400 font-bold italic text-center p-6 border-2 border-dashed rounded-xl bg-slate-50 dark:bg-slate-900/30">No {category} plans found for this date.</div> : (
+                                       <div className="max-h-40 overflow-y-auto border rounded-xl p-2 space-y-1 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 custom-scrollbar">
+                                           {filteredPlans.map(p => (
+                                               <div key={p.id} onClick={() => { setSelectedPlanId(p.id); setProductName(p.productName); setProcess(p.process); }}
+                                                  className={`p-3 rounded-lg cursor-pointer transition ${selectedPlanId === p.id ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800'}`}>
+                                                  <div className="font-black text-sm uppercase leading-tight mb-1">{p.productName}</div>
+                                                  <div className={`text-[10px] font-bold uppercase ${selectedPlanId === p.id ? 'text-emerald-100' : 'text-slate-400'}`}>{p.process} • Plan: {p.planQuantity} {p.unit || 'KG'}</div>
+                                               </div>
+                                           ))}
+                                       </div>
+                                   )}
+                               </div>
                           </div>
                         )}
                         {(selectedPlanId || editEntry) && (
-                            <>
+                            <div className="space-y-4 mt-6 pt-6 border-t dark:border-slate-700 animate-in slide-in-from-top-2">
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="flex-1">
                                         <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Actual Result Qty</label>
@@ -346,19 +368,19 @@ export const InputModal: React.FC<InputModalProps> = ({ onClose, editEntry }) =>
                                     <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1 flex items-center gap-1.5"><MessageSquare className="w-3 h-3" /> Actual Remark</label>
                                     <textarea value={actualRemark} onChange={e => setActualRemark(e.target.value.toUpperCase())} className={`${inputClasses} h-20 resize-none font-medium text-xs`} placeholder="ADD ACTUAL NOTES..." />
                                 </div>
-                            </>
+                            </div>
                         )}
                     </>
                 )}
 
                 <button 
                     type="submit" 
-                    disabled={isSubmitting || isLocked} 
+                    disabled={isSubmitting || (tab === 'Actual' && !selectedPlanId && !editEntry)} 
                     className={`w-full py-4 rounded-xl font-black text-xs uppercase tracking-[0.2em] text-white mt-4 shadow-xl transition hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed ${
-                        isLocked ? 'bg-slate-400 dark:bg-slate-700' : tab === 'Plan' ? 'bg-slate-900 dark:bg-indigo-600' : 'bg-emerald-600'
+                        tab === 'Plan' ? 'bg-slate-900 dark:bg-indigo-600' : 'bg-emerald-600'
                     }`}
                 >
-                    {isSubmitting ? 'Syncing...' : isLocked ? 'Locked - Non Working Day' : (tab === 'Actual' ? 'Submit & Mark Completed' : 'Save Plan Entry')}
+                    {isSubmitting ? 'Syncing...' : (tab === 'Actual' ? 'Submit & Mark Completed' : 'Save Plan Entry')}
                 </button>
             </form>
         </div>
