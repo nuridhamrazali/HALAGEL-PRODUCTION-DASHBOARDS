@@ -44,7 +44,18 @@ export const InputModal: React.FC<InputModalProps> = ({ onClose, editEntry }) =>
 
   const availableProcesses = useMemo(() => {
     if (category === 'Healthcare') return [...PROCESSES];
-    return PROCESSES.filter(p => !['Encapsulation', 'Blister', 'Capsules'].includes(p));
+    
+    let filtered = PROCESSES.filter(p => !['Encapsulation', 'Blister', 'Capsules'].includes(p));
+    
+    if (category === 'Rocksalt') {
+      filtered = filtered.filter(p => p !== 'Mixing' && p !== 'Sorting');
+    } else if (category === 'Toothpaste') {
+      filtered = filtered.filter(p => p !== 'Filling' && p !== 'Sorting');
+    } else if (category === 'Cosmetic') {
+      filtered = filtered.filter(p => p !== 'Sorting');
+    }
+    
+    return filtered as ProcessType[];
   }, [category]);
 
   const inputClasses = "w-full p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-bold focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all shadow-sm";
@@ -143,7 +154,7 @@ export const InputModal: React.FC<InputModalProps> = ({ onClose, editEntry }) =>
                     userId: user!.id,
                     userName: user!.name,
                     action: 'CREATE_PLAN',
-                    details: `Planned ${newEntry.planQuantity} ${unit} for ${productName}`
+                    details: `Planned ${newEntry.planQuantity} ${unit} for ${newEntry.productName}`
                 });
             } else {
                 if (!selectedPlanId) throw new Error("Please select a plan");
