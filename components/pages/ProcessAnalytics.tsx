@@ -106,7 +106,7 @@ export const ProcessAnalytics: React.FC = () => {
             <span className="text-[10px] font-black uppercase tracking-[0.3em] text-indigo-600 dark:text-indigo-400">Operational Scan</span>
           </div>
           <h2 className="text-4xl font-black text-slate-900 dark:text-white tracking-tight">
-            Manufacturing <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-violet-500">Intelligence</span>
+            Production <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-violet-500">Health</span>
           </h2>
         </div>
 
@@ -220,8 +220,8 @@ export const ProcessAnalytics: React.FC = () => {
         <div className="lg:col-span-2 bg-white dark:bg-slate-800 p-8 rounded-[3rem] shadow-xl border border-gray-100 dark:border-slate-700">
           <div className="flex items-center justify-between mb-10">
             <div>
-              <h3 className="text-xl font-black text-slate-900 dark:text-white">Throughput Variance Matrix</h3>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Identifying Plan vs Actual divergence across nodes</p>
+              <h3 className="text-xl font-black text-slate-900 dark:text-white">Production Gaps by Station</h3>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Identifying Plan vs Actual Results across all process</p>
             </div>
           </div>
           
@@ -312,7 +312,7 @@ export const ProcessAnalytics: React.FC = () => {
       <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] shadow-xl border border-gray-100 dark:border-slate-700">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10">
               <div>
-                <h3 className="text-xl font-black text-slate-900 dark:text-white">Daily Fulfillment Trend</h3>
+                <h3 className="text-xl font-black text-slate-900 dark:text-white">Daily Output Performance</h3>
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Measuring ability to meet daily demand targets</p>
               </div>
           </div>
