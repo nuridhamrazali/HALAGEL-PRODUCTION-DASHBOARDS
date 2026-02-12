@@ -20,7 +20,7 @@ export const INITIAL_USERS: User[] = [
   { id: 'u1', name: 'Idham (Administrator)', username: 'Idham', email: 'admin@halagel.com', role: 'admin', password: 'admin123' },
   { id: 'u2', name: 'Hazlina (Manager)', username: 'hazlina', email: 'haz@halagel.com', role: 'manager', password: 'pass123' },
    { id: 'u2', name: 'Ghazali (HOD)', username: 'ghazali', email: 'ghazali@halagel.com', role: 'manager', password: 'pass123' },
-   { id: 'u2', name: 'Azura (SV)', username: 'manager', email: 'sv@halagel.com', role: 'manager', password: 'pass123' },
+   { id: 'u2', name: 'Azura (SV)', username: 'Azura', email: 'sv@halagel.com', role: 'manager', password: 'pass123' },
    { id: 'u2', name: 'Hafiz (Manager)', username: 'hafiz', email: 'hafiz@halagel.com', role: 'manager', password: 'pass123' },
   { id: 'u3', name: 'Planner User', username: 'planner', email: 'planner@nexus.com', role: 'planner', password: 'password123' },
   { id: 'u3', name: 'Umaira (Planner)', username: 'Umaira', email: 'umai@halagel.com', role: 'planner', password: 'pass123' },
