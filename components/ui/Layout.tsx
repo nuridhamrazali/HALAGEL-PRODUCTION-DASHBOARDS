@@ -211,6 +211,13 @@ export const Layout: React.FC<{ children: ReactNode }> = ({ children }) => {
               </Link>
             </>
           )}
+
+          <div className="pt-8 pb-4 text-center mt-auto">
+            <p className="text-[10px] font-medium text-slate-400 dark:text-slate-500 leading-tight">
+              Created by <br/>
+              <span className="font-bold text-slate-500 dark:text-slate-400">Muhammad Nur Idham Bin Razali</span>
+            </p>
+          </div>
         </nav>
       </aside>
 
