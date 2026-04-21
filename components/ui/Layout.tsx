@@ -194,7 +194,7 @@ export const Layout: React.FC<{ children: ReactNode }> = ({ children }) => {
                 <Plus className="w-4 h-4 text-emerald-500" /> New Entry
               </button>
               
-              {hasPermission(['admin', 'manager']) && (
+              {hasPermission(['admin', 'manager', 'planner']) && (
                 <button onClick={() => { setShowOffDays(true); setIsMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-2 text-sm font-bold text-slate-500 hover:bg-gray-50 dark:hover:bg-slate-800 rounded-xl transition">
                   <CalendarX className="w-4 h-4 text-rose-500" /> Holidays
                 </button>
@@ -211,7 +211,7 @@ export const Layout: React.FC<{ children: ReactNode }> = ({ children }) => {
               </Link>
             </>
           )}
-
+          
           <div className="pt-8 pb-4 text-center mt-auto">
             <p className="text-[10px] font-medium text-slate-400 dark:text-slate-500 leading-tight">
               Created by <br/>
