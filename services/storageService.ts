@@ -1,6 +1,4 @@
 
-
-
 import { User, ProductionEntry, OffDay, ActivityLog, UnitType, ProductionStatus } from '../types';
 import { INITIAL_USERS, INITIAL_OFF_DAYS, UNITS } from '../constants';
 import { GoogleSheetsService } from './googleSheetsService';
@@ -67,9 +65,7 @@ const normalizeUser = (u: any): User => ({
   username: String(u.username || '').toLowerCase(),
   role: (u.role || 'operator') as any,
   password: String(u.password || ''),
-  avatar: String(u.avatar || ''),
-  // Fix: added updatedAt to normalizeUser to support reconciliation
-  updatedAt: String(u.updatedAt || '')
+  avatar: String(u.avatar || '')
 });
 
 const setWriteLock = () => {
@@ -105,19 +101,15 @@ const reconcileData = <T extends { id: string, updatedAt?: string }>(local: T[],
   // 2. Handle Local-Only items (Potential New items OR Deleted-In-Cloud items)
   local.forEach(localItem => {
     if (!cloudMap.has(String(localItem.id))) {
-      const createdEpoch = parseInt(String(localItem.id));
-      
-      // If we can parse a valid timestamp (after year 2000) from ID
-      if (!isNaN(createdEpoch) && createdEpoch > 946684800000) {
-        const ageInMinutes = (now - createdEpoch) / (1000 * 60);
+      const updatedAtStr = localItem.updatedAt || '';
+      const updatedAtTime = updatedAtStr.includes(' ') 
+        ? new Date(updatedAtStr.replace(' ', 'T')).getTime() 
+        : new Date(updatedAtStr).getTime();
+        
+      const ageInMinutes = isNaN(updatedAtTime) ? 999 : (now - updatedAtTime) / (1000 * 60);
 
-        // Only keep local items if they were created recently (< 30 mins)
-        // This prevents 'Ghost Data' reappearing forever, but gives ample time for cloud sync
-        if (ageInMinutes < 30) {
-          result.push(localItem);
-        }
-      } else {
-        // Fallback: If ID is not a timestamp, keep it to be safe (e.g. static data)
+      // Only keep local items if they were created/updated recently (< 10 mins)
+      if (ageInMinutes < 10) {
         result.push(localItem);
       }
     }
