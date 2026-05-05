@@ -1,4 +1,5 @@
 
+
 export type Role = 'admin' | 'manager' | 'hod' | 'planner' | 'operator';
 
 export interface User {
@@ -10,6 +11,8 @@ export interface User {
   password?: string; // In a real app, never store plain text. Used here for simulation.
   // Fix: Added missing avatar property used by the AvatarModal component
   avatar?: string;
+  // Added updatedAt for data reconciliation in StorageService
+  updatedAt?: string;
 }
 
 export type Category = 'Healthcare' | 'Toothpaste' | 'Rocksalt' | 'Cosmetic';
