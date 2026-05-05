@@ -1,4 +1,6 @@
 
+
+
 import { User, ProductionEntry, OffDay, ActivityLog, UnitType, ProductionStatus } from '../types';
 import { INITIAL_USERS, INITIAL_OFF_DAYS, UNITS } from '../constants';
 import { GoogleSheetsService } from './googleSheetsService';
@@ -10,7 +12,21 @@ const KEYS = {
   OFF_DAYS: 'halagel_off_days',
   LOGS: 'halagel_activity_logs',
   CURRENT_USER: 'halagel_current_user_session',
-  LAST_WRITE: 'halagel_last_write_timestamp'
+  LAST_WRITE: 'halagel_last_write_timestamp',
+  DELETED_IDS: 'halagel_deleted_ids'
+};
+
+const getDeletedIds = (): string[] => {
+  try { return JSON.parse(localStorage.getItem(KEYS.DELETED_IDS) || '[]'); } catch { return []; }
+};
+
+const addDeletedId = (id: string) => {
+  const ids = getDeletedIds();
+  if (!ids.includes(String(id))) {
+    ids.push(String(id));
+    if (ids.length > 2000) ids.shift(); // Keep max 2000 tombstones
+    localStorage.setItem(KEYS.DELETED_IDS, JSON.stringify(ids));
+  }
 };
 
 const normalizeUnit = (u: any): UnitType => {
@@ -65,7 +81,8 @@ const normalizeUser = (u: any): User => ({
   username: String(u.username || '').toLowerCase(),
   role: (u.role || 'operator') as any,
   password: String(u.password || ''),
-  avatar: String(u.avatar || '')
+  avatar: String(u.avatar || ''),
+  updatedAt: String(u.updatedAt || '')
 });
 
 const setWriteLock = () => {
@@ -79,9 +96,10 @@ const isWriteLocked = () => {
 
 /**
  * RECONCILIATION LOGIC
- * Solves the 'Ghost Data' problem where deleted records reappear.
+ * Correctly merges cloud data with local data by comparing updatedAt via lexicographical string comparison.
+ * Uses explicit tombstone matching to solve the 'Ghost Data' problem.
  */
-const reconcileData = <T extends { id: string, updatedAt?: string }>(local: T[], cloud: T[]): T[] => {
+const reconcileData = <T extends { id: string, updatedAt?: string }>(local: T[], cloud: T[], deletedIds: string[]): T[] => {
   const cloudMap = new Map<string, T>();
   cloud.forEach(item => cloudMap.set(String(item.id), item));
 
@@ -90,8 +108,12 @@ const reconcileData = <T extends { id: string, updatedAt?: string }>(local: T[],
 
   // 1. Process all Cloud items (They are the source of truth for existing data)
   cloud.forEach(cloudItem => {
+    // If explicitly deleted on this device but not yet synced securely, omit it
+    if (deletedIds.includes(String(cloudItem.id))) return;
+
     const localItem = local.find(l => String(l.id) === String(cloudItem.id));
-    if (localItem && localItem.updatedAt && cloudItem.updatedAt && localItem.updatedAt > cloudItem.updatedAt) {
+    // If local was updated more recently, keep local
+    if (localItem && localItem.updatedAt && cloudItem.updatedAt && String(localItem.updatedAt) > String(cloudItem.updatedAt)) {
       result.push(localItem);
     } else {
       result.push(cloudItem);
@@ -101,15 +123,22 @@ const reconcileData = <T extends { id: string, updatedAt?: string }>(local: T[],
   // 2. Handle Local-Only items (Potential New items OR Deleted-In-Cloud items)
   local.forEach(localItem => {
     if (!cloudMap.has(String(localItem.id))) {
-      const updatedAtStr = localItem.updatedAt || '';
-      const updatedAtTime = updatedAtStr.includes(' ') 
-        ? new Date(updatedAtStr.replace(' ', 'T')).getTime() 
-        : new Date(updatedAtStr).getTime();
-        
-      const ageInMinutes = isNaN(updatedAtTime) ? 999 : (now - updatedAtTime) / (1000 * 60);
+      // Don't resurrect deleted things
+      if (deletedIds.includes(String(localItem.id))) return;
 
-      // Only keep local items if they were created/updated recently (< 10 mins)
-      if (ageInMinutes < 10) {
+      const createdEpoch = parseInt(String(localItem.id));
+      
+      // If we can parse a valid timestamp (after year 2000) from ID
+      if (!isNaN(createdEpoch) && createdEpoch > 946684800000) {
+        const ageInHours = (now - createdEpoch) / (1000 * 60 * 60);
+
+        // Keep local items if created recently (< 24 hrs) and not synced yet.
+        // Gives wide berth for slow syncs, but ignores cloud-deleted items after 24H.
+        if (ageInHours < 24) {
+          result.push(localItem);
+        }
+      } else {
+        // Fallback: If ID is not a timestamp, keep it to be safe (e.g. static data)
         result.push(localItem);
       }
     }
@@ -138,7 +167,26 @@ export const StorageService = {
   
   saveUsers: async (users: User[]) => {
     setWriteLock();
+    // Detect deletes
+    const currentList = StorageService.getUsers();
+    currentList.forEach(curr => {
+      if (!users.some(u => String(u.id) === String(curr.id))) addDeletedId(String(curr.id));
+    });
+
     localStorage.setItem(KEYS.USERS, JSON.stringify(users));
+
+    // Fetch before save merging
+    if (GoogleSheetsService.isEnabled()) {
+      try {
+        const cloudRaw = await GoogleSheetsService.fetchData<any[]>('getUsers');
+        if (cloudRaw && Array.isArray(cloudRaw)) {
+          const cloudData = cloudRaw.map(normalizeUser);
+          const merged = reconcileData(users, cloudData, getDeletedIds());
+          localStorage.setItem(KEYS.USERS, JSON.stringify(merged));
+          return await GoogleSheetsService.saveData('saveUsers', merged);
+        }
+      } catch {}
+    }
     return await GoogleSheetsService.saveData('saveUsers', users);
   },
   
@@ -151,20 +199,55 @@ export const StorageService = {
   
   saveProductionData: async (data: ProductionEntry[]) => {
     setWriteLock();
+    // Detect deletes
+    const currentList = StorageService.getProductionData();
+    currentList.forEach(curr => {
+      if (!data.some(u => String(u.id) === String(curr.id))) addDeletedId(String(curr.id));
+    });
+
     const cleaned = data.map(normalizeProduction).filter(p => p.date);
     localStorage.setItem(KEYS.PRODUCTION, JSON.stringify(cleaned));
+
+    // Fetch before save merging - fixes concurrent missing inputs bug
+    if (GoogleSheetsService.isEnabled()) {
+      try {
+        const cloudRaw = await GoogleSheetsService.fetchData<any[]>('getProduction');
+        if (cloudRaw && Array.isArray(cloudRaw)) {
+          const cloudData = cloudRaw.map(normalizeProduction);
+          const merged = reconcileData(cleaned, cloudData, getDeletedIds());
+          localStorage.setItem(KEYS.PRODUCTION, JSON.stringify(merged));
+          return await GoogleSheetsService.saveData('saveProduction', merged);
+        }
+      } catch (err) {
+        console.error("Fetch before save failed", err);
+      }
+    }
     return await GoogleSheetsService.saveData('saveProduction', cleaned);
   },
 
   deleteProductionEntry: async (id: string): Promise<{ updatedData: ProductionEntry[], deletedItem: ProductionEntry | null }> => {
+    addDeletedId(String(id));
     const data = StorageService.getProductionData();
     const targetItem = data.find(p => String(p.id) === String(id)) || null;
     const updatedData = data.filter(p => String(p.id) !== String(id));
     
     setWriteLock();
     localStorage.setItem(KEYS.PRODUCTION, JSON.stringify(updatedData));
-    await GoogleSheetsService.saveData('saveProduction', updatedData);
     
+    if (GoogleSheetsService.isEnabled()) {
+      try {
+        const cloudRaw = await GoogleSheetsService.fetchData<any[]>('getProduction');
+        if (cloudRaw && Array.isArray(cloudRaw)) {
+          const cloudData = cloudRaw.map(normalizeProduction);
+          const merged = reconcileData(updatedData, cloudData, getDeletedIds());
+          localStorage.setItem(KEYS.PRODUCTION, JSON.stringify(merged));
+          await GoogleSheetsService.saveData('saveProduction', merged);
+          return { updatedData: merged, deletedItem: targetItem };
+        }
+      } catch {}
+    }
+
+    await GoogleSheetsService.saveData('saveProduction', updatedData);
     return { updatedData, deletedItem: targetItem };
   },
   
@@ -177,7 +260,23 @@ export const StorageService = {
   
   saveOffDays: async (days: OffDay[]) => {
     setWriteLock();
+    const currentList = StorageService.getOffDays();
+    currentList.forEach(curr => {
+      if (!days.some(u => String(u.id) === String(curr.id))) addDeletedId(String(curr.id));
+    });
+
     localStorage.setItem(KEYS.OFF_DAYS, JSON.stringify(days));
+
+    if (GoogleSheetsService.isEnabled()) {
+      try {
+        const cloudRaw = await GoogleSheetsService.fetchData<any[]>('getOffDays');
+        if (cloudRaw && Array.isArray(cloudRaw)) {
+          const merged = reconcileData(days, cloudRaw as any, getDeletedIds());
+          localStorage.setItem(KEYS.OFF_DAYS, JSON.stringify(merged));
+          return await GoogleSheetsService.saveData('saveOffDays', merged);
+        }
+      } catch {}
+    }
     return await GoogleSheetsService.saveData('saveOffDays', days);
   },
 
@@ -196,19 +295,23 @@ export const StorageService = {
       if (results[0] && Array.isArray(results[0])) {
         const cloudProduction = results[0].map(normalizeProduction);
         const localProduction = StorageService.getProductionData();
-        const merged = reconcileData(localProduction, cloudProduction);
+        const merged = reconcileData(localProduction, cloudProduction, getDeletedIds());
         localStorage.setItem(KEYS.PRODUCTION, JSON.stringify(merged));
       }
       
       if (results[2] && Array.isArray(results[2]) && results[2].length > 0) {
         const cloudUsers = results[2].map(normalizeUser);
         const localUsers = StorageService.getUsers();
-        const mergedUsers = reconcileData(localUsers, cloudUsers);
+        const mergedUsers = reconcileData(localUsers, cloudUsers, getDeletedIds());
         localStorage.setItem(KEYS.USERS, JSON.stringify(mergedUsers));
       }
 
       if (results[1] && Array.isArray(results[1]) && results[1].length > 0) {
-        localStorage.setItem(KEYS.OFF_DAYS, JSON.stringify(results[1]));
+        const cloudOffDays = results[1];
+        const localOffDays = StorageService.getOffDays();
+        // Assume OffDays share similar shapes
+        const mergedOffDays = reconcileData(localOffDays as any, cloudOffDays as any, getDeletedIds());
+        localStorage.setItem(KEYS.OFF_DAYS, JSON.stringify(mergedOffDays));
       }
 
       if (results[3] && Array.isArray(results[3])) {
