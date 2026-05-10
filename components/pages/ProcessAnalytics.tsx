@@ -106,7 +106,7 @@ export const ProcessAnalytics: React.FC = () => {
             <span className="text-[10px] font-black uppercase tracking-[0.3em] text-indigo-600 dark:text-indigo-400">Operational Scan</span>
           </div>
           <h2 className="text-4xl font-black text-slate-900 dark:text-white tracking-tight">
-            Production <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-violet-500">Health</span>
+            Manufacturing <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-violet-500">Intelligence</span>
           </h2>
         </div>
 
@@ -220,8 +220,8 @@ export const ProcessAnalytics: React.FC = () => {
         <div className="lg:col-span-2 bg-white dark:bg-slate-800 p-8 rounded-[3rem] shadow-xl border border-gray-100 dark:border-slate-700">
           <div className="flex items-center justify-between mb-10">
             <div>
-              <h3 className="text-xl font-black text-slate-900 dark:text-white">Production Gaps by Station</h3>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Identifying Plan vs Actual Results across all process</p>
+              <h3 className="text-xl font-black text-slate-900 dark:text-white">Throughput Variance Matrix</h3>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Identifying Plan vs Actual divergence across nodes</p>
             </div>
           </div>
           
@@ -250,7 +250,7 @@ export const ProcessAnalytics: React.FC = () => {
                       fontSize: '12px', padding: '16px', fontWeight: 'bold'
                   }}
                 />
-                <Bar dataKey="plan" name="Target Plan" fill={isDarkMode ? '#1e293b' : '#f1f5f9'} radius={[8, 8, 0, 0]} barSize={40} />
+                <Bar dataKey="plan" name="Target Plan" fill={isDarkMode ? '#334155' : '#e2e8f0'} radius={[8, 8, 0, 0]} barSize={40} />
                 <Bar dataKey="actual" name="Actual Production" radius={[8, 8, 0, 0]} barSize={25}>
                     {analytics.metrics.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.efficiency >= 90 ? '#4f46e5' : entry.efficiency >= 70 ? '#f59e0b' : '#f43f5e'} />
@@ -312,7 +312,7 @@ export const ProcessAnalytics: React.FC = () => {
       <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] shadow-xl border border-gray-100 dark:border-slate-700">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10">
               <div>
-                <h3 className="text-xl font-black text-slate-900 dark:text-white">Daily Output Performance</h3>
+                <h3 className="text-xl font-black text-slate-900 dark:text-white">Daily Fulfillment Trend</h3>
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Measuring ability to meet daily demand targets</p>
               </div>
           </div>
