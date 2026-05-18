@@ -4,7 +4,7 @@ import { getTodayISO, getDbTimestamp } from './utils/dateUtils';
 
 export const CATEGORIES = ['Healthcare', 'Toothpaste', 'Rocksalt', 'Cosmetic'] as const;
 export const PROCESSES = ['Mixing', 'Encapsulation', 'Filling', 'Sorting', 'Packing', 'Blister', 'Capsules'] as const;
-export const UNITS = ['KG', 'PCS', 'CARTON', 'BTL', 'BOX', 'PAX', 'TUBE', 'BLISTER'] as const;
+export const UNITS = ['KG', 'PCS', 'CARTON', 'BTL', 'BOX', 'PAX', 'TUBE', 'BLISTER', 'SET'] as const;
 export const OFF_DAY_TYPES: OffDayType[] = ['Public Holiday', 'Rest Day', 'Off Day'];
 
 // Friday (5) is Rest Day, Saturday (6) is Off Day
