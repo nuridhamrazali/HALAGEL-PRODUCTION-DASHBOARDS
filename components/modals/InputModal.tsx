@@ -48,7 +48,7 @@ export const InputModal: React.FC<InputModalProps> = ({ onClose, editEntry }) =>
     if (autoType) {
         return {
             type: autoType,
-            description: autoType === 'Rest Day' ? 'Friday Weekly Rest' : 'Saturday Weekly Off'
+            description: autoType === 'Off Day' ? 'Friday Weekly Off Day' : 'Saturday Weekly Rest Day'
         };
     }
     return null;
@@ -62,7 +62,7 @@ export const InputModal: React.FC<InputModalProps> = ({ onClose, editEntry }) =>
     if (category === 'Rocksalt') {
       filtered = filtered.filter(p => p !== 'Mixing' && p !== 'Sorting');
     } else if (category === 'Toothpaste') {
-      filtered = filtered.filter(p => p !== 'Filling' && p !== 'Sorting');
+      filtered = filtered.filter(p => p !== 'Sorting');
     } else if (category === 'Cosmetic') {
       filtered = filtered.filter(p => p !== 'Sorting');
     }
@@ -279,7 +279,7 @@ export const InputModal: React.FC<InputModalProps> = ({ onClose, editEntry }) =>
 
                 {tab === 'Plan' ? (
                     <>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Category</label>
                                 <select 
@@ -315,7 +315,7 @@ export const InputModal: React.FC<InputModalProps> = ({ onClose, editEntry }) =>
                               disabled={!!editEntry && !canEditPlan}
                             />
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div className="flex-1">
                                 <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Target Plan Qty</label>
                                 <input 
@@ -380,7 +380,7 @@ export const InputModal: React.FC<InputModalProps> = ({ onClose, editEntry }) =>
                         )}
                         {(selectedPlanId || editEntry) && (
                             <div className="space-y-4 mt-6 pt-6 border-t dark:border-slate-700 animate-in slide-in-from-top-2">
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div className="flex-1">
                                         <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Actual Result Qty</label>
                                         <input 
