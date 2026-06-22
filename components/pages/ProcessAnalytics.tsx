@@ -49,7 +49,7 @@ export const ProcessAnalytics: React.FC = () => {
     if (selectedCategory !== 'All' && selectedCategory !== 'Healthcare') {
       validProcesses = PROCESSES.filter(p => !['Encapsulation', 'Blister', 'Capsules'].includes(p));
       if (selectedCategory === 'Rocksalt') validProcesses = validProcesses.filter(p => p !== 'Mixing' && p !== 'Sorting');
-      else if (selectedCategory === 'Toothpaste') validProcesses = validProcesses.filter(p => p !== 'Filling' && p !== 'Sorting');
+      else if (selectedCategory === 'Toothpaste') validProcesses = validProcesses.filter(p => p !== 'Sorting');
       else if (selectedCategory === 'Cosmetic') validProcesses = validProcesses.filter(p => p !== 'Sorting');
     }
 
