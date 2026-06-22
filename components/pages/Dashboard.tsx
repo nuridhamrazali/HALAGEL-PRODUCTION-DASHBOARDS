@@ -23,6 +23,7 @@ export const Dashboard: React.FC = () => {
   
   const [selectedMonth, setSelectedMonth] = useState<string>(getCurrentMonthISO());
   const [sortConfig, setSortConfig] = useState<SortConfig>(null);
+  const [batchSearch, setBatchSearch] = useState('');
 
   const { productionData, offDays } = useMemo(() => {
     return {
@@ -55,7 +56,7 @@ export const Dashboard: React.FC = () => {
       if (category === 'Rocksalt') {
         validProcesses = validProcesses.filter(p => p !== 'Mixing' && p !== 'Sorting');
       } else if (category === 'Toothpaste') {
-        validProcesses = validProcesses.filter(p => p !== 'Filling' && p !== 'Sorting');
+        validProcesses = validProcesses.filter(p => p !== 'Sorting');
       } else if (category === 'Cosmetic') {
         validProcesses = validProcesses.filter(p => p !== 'Sorting');
       }
@@ -111,6 +112,10 @@ export const Dashboard: React.FC = () => {
     return sortedDates.map(dateKey => {
         let entriesForDate = filteredEntries.filter(d => d.date && d.date.trim().substring(0, 10) === dateKey);
         
+        if (batchSearch) {
+            entriesForDate = entriesForDate.filter(d => d.batchNo && d.batchNo.toLowerCase().includes(batchSearch.toLowerCase()));
+        }
+        
         if (sortConfig) {
             entriesForDate = [...entriesForDate].sort((a, b) => {
                 let aValue: any = a[sortConfig.key];
@@ -149,7 +154,7 @@ export const Dashboard: React.FC = () => {
             offDay: offDayInfo
         };
     });
-  }, [dashboardData.filteredData, offDays, selectedMonth, sortConfig]);
+  }, [dashboardData.filteredData, offDays, selectedMonth, sortConfig, batchSearch]);
 
   const handleDelete = async (id: string) => {
       if(!window.confirm("PERMANENTLY delete record?")) return;
@@ -249,7 +254,16 @@ export const Dashboard: React.FC = () => {
                </h3>
                <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">{selectedMonth} Operational granularity</p>
             </div>
-            <input type="month" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="px-4 py-2 text-sm font-bold bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 dark:text-white outline-none" />
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
+                <input 
+                    type="text" 
+                    placeholder="Search batch..." 
+                    value={batchSearch} 
+                    onChange={e => setBatchSearch(e.target.value)} 
+                    className="w-full sm:w-48 px-4 py-2 text-sm font-bold bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 dark:text-white outline-none" 
+                />
+                <input type="month" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="px-4 py-2 text-sm font-bold bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 dark:text-white outline-none" />
+            </div>
         </div>
         
         <div className="space-y-6">
