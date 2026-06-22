@@ -6,7 +6,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { ProductionEntry, Category, ProcessType, UnitType } from '../../types';
 import { AlertCircle, CheckCircle2, Palmtree, MessageSquare } from 'lucide-react';
-import { getTodayISO } from '../../utils/dateUtils';
+import { getTodayISO, getWeeklyOffDayType } from '../../utils/dateUtils';
 
 interface PlanFormState {
   date: string;
@@ -34,12 +34,18 @@ export const InputPlan: React.FC = () => {
   const [msg, setMsg] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
   const offDays = useMemo(() => StorageService.getOffDays(), []);
-  const currentOffDay = useMemo(() => offDays.find(od => od.date === formData.date), [formData.date, offDays]);
+  const currentOffDay = useMemo(() => {
+    const manual = offDays.find(od => od.date === formData.date);
+    if (manual) return manual;
+    const auto = getWeeklyOffDayType(formData.date);
+    if (auto) return { type: auto, description: auto === 'Rest Day' ? 'Friday Weekly Rest' : 'Saturday Weekly Off' };
+    return null;
+  }, [formData.date, offDays]);
 
   useEffect(() => {
     if (currentOffDay) {
         window.dispatchEvent(new CustomEvent('app-notification', { 
-            detail: { message: `HOLIDAY ALERT: ${currentOffDay.description}`, type: 'info' } 
+            detail: { message: `REST DAY ALERT: ${currentOffDay.description}`, type: 'info' } 
         }));
     }
   }, [currentOffDay]);
@@ -52,7 +58,7 @@ export const InputPlan: React.FC = () => {
     if (formData.category === 'Rocksalt') {
       filtered = filtered.filter(p => p !== 'Mixing' && p !== 'Sorting');
     } else if (formData.category === 'Toothpaste') {
-      filtered = filtered.filter(p => p !== 'Filling' && p !== 'Sorting');
+      filtered = filtered.filter(p => p !== 'Sorting');
     } else if (formData.category === 'Cosmetic') {
       filtered = filtered.filter(p => p !== 'Sorting');
     }
@@ -68,10 +74,6 @@ export const InputPlan: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (currentOffDay) {
-      setMsg({ type: 'error', text: `Selected date is an Off Day: ${currentOffDay.description}.` });
-      return;
-    }
 
     if (!formData.productName || !formData.quantity) {
       setMsg({ type: 'error', text: 'Please fill all required fields.' });
@@ -152,7 +154,7 @@ export const InputPlan: React.FC = () => {
                 <div className="mt-4 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl flex items-center gap-4">
                   <Palmtree className="w-6 h-6 text-amber-500 shrink-0" />
                   <div className="flex-1">
-                    <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest leading-none mb-1">Non-Working Day</p>
+                    <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest leading-none mb-1">{currentOffDay.type} Alert</p>
                     <p className="text-xs font-black text-slate-800 dark:text-amber-100">{currentOffDay.description}</p>
                   </div>
                 </div>
@@ -229,10 +231,9 @@ export const InputPlan: React.FC = () => {
           <div className="pt-6">
             <button 
               type="submit"
-              disabled={!!currentOffDay}
-              className="w-full bg-slate-900 dark:bg-indigo-600 text-white font-black py-4 rounded-2xl hover:opacity-90 transition-all shadow-xl shadow-indigo-500/10 disabled:bg-slate-300 disabled:cursor-not-allowed uppercase tracking-[0.2em] text-sm"
+              className="w-full bg-slate-900 dark:bg-indigo-600 text-white font-black py-4 rounded-2xl hover:opacity-90 transition-all shadow-xl shadow-indigo-500/10 uppercase tracking-[0.2em] text-sm"
             >
-              {currentOffDay ? 'Locked - Non Working Day' : 'Secure Plan Entry'}
+              Secure Plan Entry
             </button>
           </div>
         </form>
