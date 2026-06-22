@@ -130,7 +130,7 @@ export const ProductionCalendar: React.FC = () => {
     if (category === 'Rocksalt') {
       filtered = filtered.filter(p => p !== 'Mixing' && p !== 'Sorting');
     } else if (category === 'Toothpaste') {
-      filtered = filtered.filter(p => p !== 'Filling' && p !== 'Sorting');
+      filtered = filtered.filter(p => p !== 'Sorting');
     } else if (category === 'Cosmetic') {
       filtered = filtered.filter(p => p !== 'Sorting');
     }
@@ -216,12 +216,25 @@ export const ProductionCalendar: React.FC = () => {
                   <span className="text-[11px] font-black uppercase text-slate-500 tracking-[0.2em]">Process Node</span>
                 </th>
                 {columns.map(col => {
-                  const isOff = !col.isAggregated && !!(getWeeklyOffDayType(col.key) || offDays.find(od => od.date === col.key));
+                  const autoOff = !col.isAggregated ? getWeeklyOffDayType(col.key) : null;
+                  const manualOff = !col.isAggregated ? offDays.find(od => od.date === col.key) : null;
+                  const offType = manualOff?.type || autoOff;
+                  const isOff = !!offType;
+                  
                   return (
                     <th key={col.key} className={`p-5 text-center border-b-2 border-r-[3px] border-slate-200 dark:border-slate-700 min-w-[280px] last:border-r-0 ${isOff ? 'bg-slate-100/50 dark:bg-slate-800/30' : ''}`}>
                       <div className="flex flex-col items-center">
-                        <span className={`text-sm font-black text-slate-800 dark:text-white mb-1 ${col.isAggregated ? 'text-indigo-600' : ''}`}>
+                        <span className={`text-sm font-black text-slate-800 dark:text-white mb-1 flex items-center gap-2 ${col.isAggregated ? 'text-indigo-600' : ''}`}>
                           {col.label}
+                          {isOff && (
+                             <span className={`text-[9px] px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                                 offType === 'Public Holiday' ? 'bg-rose-100 text-rose-600' :
+                                 offType === 'Rest Day' ? 'bg-indigo-100 text-indigo-600' :
+                                 'bg-amber-100 text-amber-600'
+                             }`}>
+                                 {offType}
+                             </span>
+                          )}
                         </span>
                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{col.subLabel}</span>
                       </div>
@@ -266,7 +279,7 @@ export const ProductionCalendar: React.FC = () => {
                               {offType && (
                                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.03] dark:opacity-[0.08] select-none z-0">
                                    <span className="text-[18px] font-black uppercase tracking-[0.4em] -rotate-12 border-4 border-current px-6 py-2 rounded-2xl text-center leading-tight whitespace-nowrap">
-                                     {manualOff?.description || (autoOff === 'Rest Day' ? 'Rest Day' : 'Off Day')}
+                                     {manualOff?.description || (autoOff === 'Rest Day' ? 'Rest Day' : 'Off Day (Holiday)')}
                                    </span>
                                 </div>
                               )}
