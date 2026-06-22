@@ -23,6 +23,7 @@ export const ProductionLog: React.FC = () => {
   const [category, setCategory] = useState('All');
   const [processType, setProcessType] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
+  const [batchSearch, setBatchSearch] = useState('');
 
   useEffect(() => {
     setData(StorageService.getProductionData());
@@ -44,7 +45,8 @@ export const ProductionLog: React.FC = () => {
       const matchStatus = statusFilter === 'All' || d.status === statusFilter;
       const matchStart = !dateRange.start || (d.date && d.date >= dateRange.start);
       const matchEnd = !dateRange.end || (d.date && d.date <= dateRange.end);
-      return matchCat && matchProc && matchStatus && matchStart && matchEnd;
+      const matchBatch = !batchSearch || (d.batchNo && d.batchNo.toLowerCase().includes(batchSearch.toLowerCase()));
+      return matchCat && matchProc && matchStatus && matchStart && matchEnd && matchBatch;
     });
 
     const statusWeight: Record<string, number> = { 'In Progress': 1, 'Completed': 2 };
@@ -69,7 +71,7 @@ export const ProductionLog: React.FC = () => {
     }
 
     return result;
-  }, [data, dateRange, category, processType, statusFilter, sortConfig]);
+  }, [data, dateRange, category, processType, statusFilter, sortConfig, batchSearch]);
 
   const calculateEfficiency = (actual: number, plan: number) => plan > 0 ? ((actual / plan) * 100).toFixed(1) : '0';
 
@@ -78,6 +80,7 @@ export const ProductionLog: React.FC = () => {
     setCategory('All');
     setProcessType('All');
     setStatusFilter('All');
+    setBatchSearch('');
     setSortConfig(null);
   };
 
@@ -159,6 +162,10 @@ export const ProductionLog: React.FC = () => {
             <option value="In Progress">In Progress</option>
             <option value="Completed">Completed</option>
           </select>
+        </div>
+        <div className="space-y-2 flex-grow min-w-[200px]">
+          <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-1"><Filter className="w-3 h-3" /> Batch No</label>
+          <input type="text" placeholder="Search batch..." value={batchSearch} onChange={e => setBatchSearch(e.target.value)} className="w-full px-4 py-2.5 text-sm bg-gray-50 dark:bg-slate-900 rounded-xl border dark:border-slate-700 outline-none dark:text-white font-bold" />
         </div>
         <button onClick={resetFilters} className="flex items-center gap-1.5 px-4 py-2.5 text-[10px] font-black uppercase text-rose-500 hover:bg-rose-50 rounded-xl transition"><XCircle className="w-4 h-4" /> Reset</button>
       </div>
