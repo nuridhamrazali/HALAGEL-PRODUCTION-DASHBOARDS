@@ -19,7 +19,7 @@ export type Category = 'Healthcare' | 'Toothpaste' | 'Rocksalt' | 'Cosmetic';
 
 export type ProcessType = 'Mixing' | 'Encapsulation' | 'Filling' | 'Sorting' | 'Packing' | 'Blister' | 'Capsules';
 
-export type UnitType = 'KG' | 'PCS' | 'CARTON' | 'BTL' | 'BOX' | 'PAX' | 'TUBE' | 'BLISTER' | 'SET';
+export type UnitType = 'KG' | 'PCS' | 'CARTON' | 'BTL' | 'BOX' | 'PAX' | 'TUBE' | 'BLISTER' | 'SET' | 'POUCH';
 
 export type ProductionStatus = 'In Progress' | 'Completed';
 
