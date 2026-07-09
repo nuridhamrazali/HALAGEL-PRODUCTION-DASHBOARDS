@@ -15,6 +15,7 @@ type SortConfig = {
 
 export const ProductionLog: React.FC = () => {
   const { refreshKey } = useDashboard();
+  const { hasPermission } = useAuth();
   const [data, setData] = useState<ProductionEntry[]>([]);
   const [sortConfig, setSortConfig] = useState<SortConfig>(null);
   const offDays = useMemo(() => StorageService.getOffDays(), []);
@@ -89,7 +90,7 @@ export const ProductionLog: React.FC = () => {
     const rows = filteredData.map(d => [
         d.date, d.category, d.process, `"${d.productName}"`, d.planQuantity || 0, d.actualQuantity || 0, d.unit || 'KG',
         calculateEfficiency(d.actualQuantity || 0, d.planQuantity || 0), d.batchNo || '', (d.manpower || 0).toFixed(2), d.status || 'In Progress', 
-        `"${(d.planRemark || '').replace(/"/g, '""')}"`, `"${(d.actualRemark || '').replace(/"/g, '""')}"`
+        `"${String(d.planRemark || '').replace(/"/g, '""')}"`, `"${String(d.actualRemark || '').replace(/"/g, '""')}"`
     ]);
     const filename = `production_log_${getTodayISO()}.csv`;
 
@@ -124,12 +125,14 @@ export const ProductionLog: React.FC = () => {
           <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Detailed operational history</p>
         </div>
         
-        <button 
-          onClick={downloadCSV} 
-          className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-emerald-700 transition shadow-lg shadow-emerald-500/20"
-        >
-          <Download className="w-4 h-4" /> Export Report
-        </button>
+        {hasPermission(['admin', 'manager', 'planner']) && (
+          <button 
+            onClick={downloadCSV} 
+            className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-emerald-700 transition shadow-lg shadow-emerald-500/20"
+          >
+            <Download className="w-4 h-4" /> Export Report
+          </button>
+        )}
       </div>
 
       <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-slate-700 flex flex-wrap gap-6 items-end">
@@ -171,7 +174,84 @@ export const ProductionLog: React.FC = () => {
       </div>
 
       <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] shadow-sm border border-gray-100 dark:border-slate-700 overflow-hidden">
-        <div className="overflow-x-auto custom-scrollbar">
+        
+        {/* Mobile View */}
+        <div className="md:hidden flex flex-col gap-4 p-4">
+            {filteredData.map(entry => {
+                const eff = Number(calculateEfficiency(entry.actualQuantity || 0, entry.planQuantity || 0));
+                const manualOffDay = offDays.find(od => od.date === entry.date);
+                const autoOffType = getWeeklyOffDayType(entry.date || '');
+                const labelType = manualOffDay?.type || autoOffType;
+                const labelDesc = manualOffDay?.description || (autoOffType === 'Rest Day' ? 'Weekly Rest' : 'Weekly Off');
+                return (
+                    <div key={entry.id} className={`p-4 rounded-2xl border dark:border-slate-700 bg-gray-50 dark:bg-slate-900 shadow-sm ${labelType ? 'bg-amber-50/10' : ''}`}>
+                       <div className="flex justify-between items-start mb-2">
+                           <div className="font-black text-slate-800 dark:text-white font-mono text-xs">{formatDateToDMY(entry.date)}</div>
+                           {labelType ? (
+                            <span className={`flex items-center gap-1 text-[9px] font-black uppercase ${
+                            labelType === 'Public Holiday' ? 'text-rose-500' : 
+                            labelType === 'Rest Day' ? 'text-indigo-500' : 'text-amber-500'
+                            }`}>
+                            {labelType === 'Public Holiday' ? <Palmtree className="w-3 h-3" /> : 
+                                 labelType === 'Rest Day' ? <Coffee className="w-3 h-3" /> : <Ban className="w-3 h-3" />}
+                            {labelDesc}
+                            </span>
+                            ) : (
+                                <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[8px] font-black uppercase border ${entry.status === 'Completed' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-indigo-50 text-indigo-600 border-indigo-100'}`}>
+                                    {entry.status === 'Completed' ? <CheckCircle className="w-2.5 h-2.5" /> : <Clock className="w-2.5 h-2.5 animate-pulse" />} 
+                                    {entry.status}
+                                </div>
+                            )}
+                       </div>
+                       
+                       <div className="mb-3">
+                           <div className="font-black text-slate-800 dark:text-white text-sm">{entry.productName}</div>
+                           <div className="flex items-center gap-2 mt-1">
+                                <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-600 border dark:border-slate-700">{entry.category}</span>
+                                <span className="text-[9px] font-black text-indigo-500 dark:text-indigo-400 uppercase tracking-widest">{entry.process}</span>
+                           </div>
+                       </div>
+                       
+                       <div className="grid grid-cols-2 gap-4 mb-3 border-t border-b dark:border-slate-700 py-3">
+                            <div>
+                                <div className="text-[9px] font-black text-slate-400 uppercase mb-1">Plan Data</div>
+                                <div className="font-black font-mono text-slate-700 dark:text-slate-200 text-sm">{(entry.planQuantity || 0).toLocaleString()} <span className="text-[9px] text-slate-400">{entry.unit || 'KG'}</span></div>
+                                {entry.planRemark && (
+                                    <div className="flex items-center gap-1 mt-1 opacity-60">
+                                        <MessageSquare className="w-2.5 h-2.5 text-indigo-500" />
+                                        <span className="text-[9px] font-medium italic truncate max-w-[100px]">{entry.planRemark}</span>
+                                    </div>
+                                )}
+                            </div>
+                            <div>
+                                <div className="text-[9px] font-black text-slate-400 uppercase mb-1">Actual Data</div>
+                                <div className="font-black font-mono text-emerald-500 text-sm">{(entry.actualQuantity || 0).toLocaleString()} <span className="text-[9px] text-emerald-500/70">{entry.unit || 'KG'}</span></div>
+                                {entry.actualRemark && (
+                                    <div className="flex items-center gap-1 mt-1 opacity-60">
+                                        <MessageSquare className="w-2.5 h-2.5 text-emerald-500" />
+                                        <span className="text-[9px] font-medium italic truncate max-w-[100px]">{entry.actualRemark}</span>
+                                    </div>
+                                )}
+                            </div>
+                       </div>
+                       
+                       <div className="flex justify-between items-center">
+                            <div>
+                                <div className="text-[9px] font-black text-slate-400 uppercase mb-0.5">Batch No</div>
+                                <div className="text-[11px] font-black text-slate-600 dark:text-slate-300 font-mono uppercase">{entry.batchNo || '---'}</div>
+                            </div>
+                            <div className="text-right">
+                                <div className="text-[9px] font-black text-slate-400 uppercase mb-0.5">Efficiency</div>
+                                <div className={`font-black ${eff >= 90 ? 'text-emerald-500' : eff >= 70 ? 'text-amber-500' : 'text-rose-500'}`}>{eff}%</div>
+                            </div>
+                       </div>
+                    </div>
+                );
+            })}
+        </div>
+
+        {/* Desktop View */}
+        <div className="hidden md:block overflow-x-auto custom-scrollbar">
           <table className="w-full text-sm text-left border-collapse">
             <thead className="bg-gray-50/50 dark:bg-slate-900/50 text-slate-400 font-black uppercase text-[10px] tracking-widest border-b dark:border-slate-700">
                 <tr>
