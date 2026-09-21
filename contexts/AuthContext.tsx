@@ -1,7 +1,27 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
 import { User, Role } from '../types';
 import { StorageService } from '../services/storageService';
-import { hashPassword } from '../utils/securityUtils';
+
+/**
+ * Creates a SHA-256 hash of a string.
+ * Used for storing/comparing passwords securely.
+ * Includes a fallback for non-secure contexts (HTTP/IP-based access).
+ */
+export async function hashPassword(password: string): Promise<string> {
+  if (typeof window !== 'undefined' && window.crypto && window.crypto.subtle) {
+    try {
+      const msgUint8 = new TextEncoder().encode(password);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    } catch (e) {
+      console.warn("Hashing failed, falling back to basic encoding", e);
+    }
+  }
+
+  // Fallback for non-secure contexts (development/internal IPs)
+  return "plain_" + btoa(password).substring(0, 59);
+}
 
 interface AuthContextType {
   user: User | null;
