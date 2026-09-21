@@ -7,11 +7,12 @@ export const Login: React.FC = () => {
   const { login } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const success = login(username, password);
+    const success = await login(username, password, rememberMe);
     if (!success) {
       setError('Invalid username or password');
     }
@@ -58,6 +59,19 @@ export const Login: React.FC = () => {
                         onChange={e => setPassword(e.target.value)}
                         required
                     />
+                </div>
+
+                <div className="flex items-center gap-2 px-1">
+                    <input 
+                        type="checkbox" 
+                        id="rememberMePage"
+                        checked={rememberMe} 
+                        onChange={e => setRememberMe(e.target.checked)}
+                        className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 border-gray-300 cursor-pointer"
+                    />
+                    <label htmlFor="rememberMePage" className="text-xs text-slate-600 cursor-pointer select-none">
+                        Remember login on this device
+                    </label>
                 </div>
 
                 <button 
