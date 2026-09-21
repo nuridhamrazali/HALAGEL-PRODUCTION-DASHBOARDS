@@ -12,6 +12,7 @@ const KEYS = {
   OFF_DAYS: 'halagel_off_days',
   LOGS: 'halagel_activity_logs',
   CURRENT_USER: 'halagel_current_user_session',
+  REMEMBER_ME: 'halagel_remember_session',
   LAST_WRITE: 'halagel_last_write_timestamp',
   DELETED_IDS: 'halagel_deleted_ids'
 };
@@ -147,6 +148,103 @@ const reconcileData = <T extends { id: string, updatedAt?: string }>(local: T[],
   return result;
 };
 
+/**
+ * USER RECONCILIATION LOGIC
+ * User accounts are authoritative in the cloud (Google Sheets) when connected.
+ * This guarantees:
+ * 1. Usernames are unique primary keys (case-insensitive).
+ * 2. Cloud updates/deletes take precedence over stale local cache.
+ * 3. Local accounts deleted in the cloud are purged, never resurrected.
+ * 4. Local accounts created offline recently (< 15 mins) on this device are preserved.
+ */
+const reconcileUsers = (local: User[], cloud: User[]): User[] => {
+  const userMap = new Map<string, User>();
+
+  // 1. Cloud users represent the authoritative database accounts
+  cloud.forEach(c => {
+    if (!c.username) return;
+    const cleanUser = normalizeUser(c);
+    const key = cleanUser.username.toLowerCase();
+    const existing = userMap.get(key);
+    if (!existing || String(cleanUser.updatedAt || '') >= String(existing.updatedAt || '')) {
+      userMap.set(key, cleanUser);
+    }
+  });
+
+  // 2. Only keep local users if they are not in the cloud AND were created offline on this device in the last 15 minutes
+  // (Prevents resurrecting accounts that were deleted in the cloud by an admin on another device)
+  const now = Date.now();
+  local.forEach(l => {
+    if (!l.username) return;
+    const key = l.username.toLowerCase();
+    if (!userMap.has(key)) {
+      const createdEpoch = parseInt(String(l.id));
+      if (!isNaN(createdEpoch) && (now - createdEpoch) < (15 * 60 * 1000)) {
+        userMap.set(key, normalizeUser(l));
+      }
+    }
+  });
+
+  // Ensure default admin is present if missing
+  if (!userMap.has('admin')) {
+    const adminUser = INITIAL_USERS.find(u => u.username === 'admin');
+    if (adminUser) userMap.set('admin', adminUser);
+  }
+
+  return Array.from(userMap.values());
+};
+
+/**
+ * DEDUPLICATION LOGIC FOR ACTIVITY LOGS
+ * Removes duplicate log entries by unique ID or matching content signature
+ * (timestamp + action + user + details), sorting newest first.
+ */
+export const deduplicateLogs = (logs: any[]): ActivityLog[] => {
+  if (!Array.isArray(logs)) return [];
+  const seenIds = new Set<string>();
+  const seenSignatures = new Set<string>();
+  const result: ActivityLog[] = [];
+
+  for (const item of logs) {
+    if (!item) continue;
+    
+    const id = String(item.id || '').trim();
+    const userId = String(item.userId || '').trim();
+    const userName = String(item.userName || '').trim();
+    const action = String(item.action || '').trim().toUpperCase();
+    const details = String(item.details || '').trim();
+    const timestamp = String(item.timestamp || '').trim();
+
+    const log: ActivityLog = {
+      id: id || `${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      userId,
+      userName: userName || userId || 'System',
+      action,
+      details,
+      timestamp
+    };
+
+    const userKey = (userName || userId).toLowerCase();
+    // Normalize timestamp (e.g., removing any extra whitespace)
+    const signature = `${timestamp}:::${action}:::${userKey}:::${details}`;
+    const idKey = log.id ? `ID:::${log.id}` : null;
+
+    if (idKey && seenIds.has(idKey)) {
+      continue;
+    }
+    if (seenSignatures.has(signature)) {
+      continue;
+    }
+
+    if (idKey) seenIds.add(idKey);
+    seenSignatures.add(signature);
+    result.push(log);
+  }
+
+  // Sort descending by timestamp (newest first)
+  return result.sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
+};
+
 export const StorageService = {
   getUsers: (): User[] => {
     try {
@@ -158,36 +256,97 @@ export const StorageService = {
           list = parsed.map(normalizeUser);
         }
       }
-      if (!list.some(u => u.username === 'admin')) return INITIAL_USERS;
-      return list;
+      if (!list.some(u => u.username === 'admin')) list = INITIAL_USERS;
+
+      // Strictly deduplicate by username (case-insensitive) - preserve latest updatedAt
+      const userMap = new Map<string, User>();
+      list.forEach(u => {
+        if (!u.username) return;
+        const key = u.username.toLowerCase();
+        const existing = userMap.get(key);
+        if (!existing || String(u.updatedAt || '') >= String(existing.updatedAt || '')) {
+          userMap.set(key, u);
+        }
+      });
+      return Array.from(userMap.values());
     } catch { 
       return INITIAL_USERS; 
     }
   },
   
-  saveUsers: async (users: User[]) => {
+  saveUsers: async (users: User[]): Promise<boolean> => {
     setWriteLock();
-    // Detect deletes
-    const currentList = StorageService.getUsers();
-    currentList.forEach(curr => {
-      if (!users.some(u => String(u.id) === String(curr.id))) addDeletedId(String(curr.id));
+
+    // Deduplicate by username (case-insensitive)
+    const userMap = new Map<string, User>();
+    users.forEach(u => {
+      if (!u.username) return;
+      const key = u.username.toLowerCase();
+      userMap.set(key, normalizeUser(u));
     });
+    const cleanedUsers = Array.from(userMap.values());
 
-    localStorage.setItem(KEYS.USERS, JSON.stringify(users));
+    localStorage.setItem(KEYS.USERS, JSON.stringify(cleanedUsers));
 
-    // Fetch before save merging
+    // Update session if current user was updated or deleted
+    const session = StorageService.getSession();
+    if (session) {
+      const match = cleanedUsers.find(u => u.username.toLowerCase() === session.username.toLowerCase());
+      if (match) {
+        StorageService.setSession(match);
+      } else {
+        StorageService.setSession(null);
+      }
+    }
+
+    // Direct save to Google Sheets (authoritative push, prevents zombie re-merge)
     if (GoogleSheetsService.isEnabled()) {
       try {
-        const cloudRaw = await GoogleSheetsService.fetchData<any[]>('getUsers');
-        if (cloudRaw && Array.isArray(cloudRaw)) {
-          const cloudData = cloudRaw.map(normalizeUser);
-          const merged = reconcileData(users, cloudData, getDeletedIds());
-          localStorage.setItem(KEYS.USERS, JSON.stringify(merged));
-          return await GoogleSheetsService.saveData('saveUsers', merged);
-        }
-      } catch {}
+        return await GoogleSheetsService.saveData('saveUsers', cleanedUsers);
+      } catch (e) {
+        console.warn('Failed to save users to Google Sheets:', e);
+        return false;
+      }
     }
-    return await GoogleSheetsService.saveData('saveUsers', users);
+    return true;
+  },
+
+  syncUsers: async (): Promise<User[]> => {
+    if (!GoogleSheetsService.isEnabled()) {
+      return StorageService.getUsers();
+    }
+    try {
+      const cloudRaw = await GoogleSheetsService.fetchData<any[]>('getUsers');
+      if (cloudRaw && Array.isArray(cloudRaw) && cloudRaw.length > 0) {
+        const cloudUsers = cloudRaw.map(normalizeUser);
+        const localUsers = StorageService.getUsers();
+        const mergedUsers = reconcileUsers(localUsers, cloudUsers);
+        
+        localStorage.setItem(KEYS.USERS, JSON.stringify(mergedUsers));
+        
+        // Sync active session if the user's role or info changed in cloud
+        const currentSession = StorageService.getSession();
+        if (currentSession) {
+          const fresh = mergedUsers.find(u => u.username.toLowerCase() === currentSession.username.toLowerCase());
+          if (!fresh) {
+            StorageService.setSession(null);
+            window.dispatchEvent(new CustomEvent('user-session-invalidated', {
+              detail: { message: 'Your account was deleted by an administrator.' }
+            }));
+          } else if (fresh.role !== currentSession.role || fresh.name !== currentSession.name) {
+            StorageService.setSession(fresh);
+            window.dispatchEvent(new CustomEvent('user-session-updated', {
+              detail: { user: fresh }
+            }));
+          }
+        }
+
+        return mergedUsers;
+      }
+    } catch (err) {
+      console.warn("Failed to sync users with cloud:", err);
+    }
+    return StorageService.getUsers();
   },
   
   getProductionData: (): ProductionEntry[] => {
@@ -219,7 +378,7 @@ export const StorageService = {
           return await GoogleSheetsService.saveData('saveProduction', merged);
         }
       } catch (err) {
-        console.error("Fetch before save failed", err);
+        console.warn("Fetch before save failed:", err?.toString() || 'Network failure');
       }
     }
     return await GoogleSheetsService.saveData('saveProduction', cleaned);
@@ -302,8 +461,25 @@ export const StorageService = {
       if (results[2] && Array.isArray(results[2]) && results[2].length > 0) {
         const cloudUsers = results[2].map(normalizeUser);
         const localUsers = StorageService.getUsers();
-        const mergedUsers = reconcileData(localUsers, cloudUsers, getDeletedIds());
+        const mergedUsers = reconcileUsers(localUsers, cloudUsers);
         localStorage.setItem(KEYS.USERS, JSON.stringify(mergedUsers));
+
+        // Sync active session if role or details updated in cloud
+        const currentSession = StorageService.getSession();
+        if (currentSession) {
+          const fresh = mergedUsers.find(u => u.username.toLowerCase() === currentSession.username.toLowerCase());
+          if (!fresh) {
+            StorageService.setSession(null);
+            window.dispatchEvent(new CustomEvent('user-session-invalidated', {
+              detail: { message: 'Your account was deleted by an administrator.' }
+            }));
+          } else if (fresh.role !== currentSession.role || fresh.name !== currentSession.name) {
+            StorageService.setSession(fresh);
+            window.dispatchEvent(new CustomEvent('user-session-updated', {
+              detail: { user: fresh }
+            }));
+          }
+        }
       }
 
       if (results[1] && Array.isArray(results[1]) && results[1].length > 0) {
@@ -315,43 +491,134 @@ export const StorageService = {
       }
 
       if (results[3] && Array.isArray(results[3])) {
-        localStorage.setItem(KEYS.LOGS, JSON.stringify(results[3].slice(0, 500)));
+        const localLogs = StorageService.getLogs();
+        const cloudLogs = results[3];
+        const mergedLogs = deduplicateLogs([...localLogs, ...cloudLogs]).slice(0, 500);
+        localStorage.setItem(KEYS.LOGS, JSON.stringify(mergedLogs));
+
+        // If cloud had duplicates or was out of sync, write back the cleaned list
+        if (results[3].length !== mergedLogs.slice(0, results[3].length).length) {
+          GoogleSheetsService.saveData('saveLogs', mergedLogs.slice(0, 50)).catch(() => {});
+        }
+
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('activity-log-updated', { detail: { logs: mergedLogs } }));
+        }
       }
     } catch (err) {
-      console.error("Background Sync Failure:", err);
+      console.warn("Background Sync Failure:", err?.toString() || 'Network failure');
     }
   },
   
   getLogs: (): ActivityLog[] => {
     try {
-      const logs = JSON.parse(localStorage.getItem(KEYS.LOGS) || '[]');
-      return Array.isArray(logs) ? logs : [];
+      const raw = localStorage.getItem(KEYS.LOGS);
+      if (!raw) return [];
+      const logs = JSON.parse(raw);
+      if (!Array.isArray(logs)) return [];
+      const clean = deduplicateLogs(logs);
+      if (clean.length !== logs.length) {
+        localStorage.setItem(KEYS.LOGS, JSON.stringify(clean));
+      }
+      return clean;
     } catch { return []; }
   },
   
   addLog: async (log: Omit<ActivityLog, 'id' | 'timestamp'>) => {
     setWriteLock();
-    const logs = StorageService.getLogs();
-    const newLog = { 
+    const newLog: ActivityLog = { 
         ...log, 
-        id: Date.now().toString(), 
+        id: `${Date.now()}_${Math.random().toString(36).substring(2, 7)}`, 
         timestamp: getDbTimestamp() 
     };
-    logs.unshift(newLog);
-    if (logs.length > 500) logs.pop();
-    localStorage.setItem(KEYS.LOGS, JSON.stringify(logs));
-    return await GoogleSheetsService.saveData('saveLogs', [newLog, ...logs.slice(0, 49)]);
+
+    const currentLogs = StorageService.getLogs();
+    const updatedLogs = deduplicateLogs([newLog, ...currentLogs]).slice(0, 500);
+    localStorage.setItem(KEYS.LOGS, JSON.stringify(updatedLogs));
+
+    // Instantly notify current tab and other open components
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('activity-log-updated', { detail: { log: newLog, logs: updatedLogs } }));
+      window.dispatchEvent(new CustomEvent('halagel-data-updated'));
+    }
+
+    // Save to Google Sheets: send updatedLogs.slice(0, 50) directly (single entry, no double prepend)
+    if (GoogleSheetsService.isEnabled()) {
+      try {
+        await GoogleSheetsService.saveData('saveLogs', updatedLogs.slice(0, 50));
+      } catch (err) {
+        console.warn("Failed to sync log to cloud:", err?.toString() || 'Network failure');
+      }
+    }
+    return true;
   },
 
   getSession: (): User | null => {
     try {
-      const session = localStorage.getItem(KEYS.CURRENT_USER);
-      return session ? JSON.parse(session) : null;
-    } catch { return null; }
+      // 1. Check sessionStorage first (active tab/window/PWA session)
+      if (typeof window !== 'undefined' && window.sessionStorage) {
+        const sessionStr = sessionStorage.getItem(KEYS.CURRENT_USER);
+        if (sessionStr) {
+          return JSON.parse(sessionStr);
+        }
+      }
+
+      // 2. Check if user explicitly enabled "Remember me on this device"
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const isRemembered = localStorage.getItem(KEYS.REMEMBER_ME) === 'true';
+        if (isRemembered) {
+          const localStr = localStorage.getItem(KEYS.CURRENT_USER);
+          if (localStr) {
+            const parsed = JSON.parse(localStr);
+            // Hydrate sessionStorage for the current tab/session
+            if (window.sessionStorage) {
+              sessionStorage.setItem(KEYS.CURRENT_USER, localStr);
+            }
+            return parsed;
+          }
+        } else {
+          // Purge any stale, non-remembered persistent sessions in localStorage
+          localStorage.removeItem(KEYS.CURRENT_USER);
+        }
+      }
+      return null;
+    } catch { 
+      return null; 
+    }
   },
   
-  setSession: (user: User | null) => {
-    if (user) localStorage.setItem(KEYS.CURRENT_USER, JSON.stringify(user));
-    else localStorage.removeItem(KEYS.CURRENT_USER);
+  setSession: (user: User | null, rememberMe?: boolean) => {
+    try {
+      if (typeof window === 'undefined') return;
+
+      if (user) {
+        const userJson = JSON.stringify(user);
+        // Active session is always placed in sessionStorage
+        if (window.sessionStorage) {
+          sessionStorage.setItem(KEYS.CURRENT_USER, userJson);
+        }
+
+        // Determine persistence across browser/PWA closure
+        const shouldRemember = rememberMe !== undefined
+          ? rememberMe
+          : (localStorage.getItem(KEYS.REMEMBER_ME) === 'true');
+
+        if (shouldRemember) {
+          localStorage.setItem(KEYS.REMEMBER_ME, 'true');
+          localStorage.setItem(KEYS.CURRENT_USER, userJson);
+        } else {
+          localStorage.removeItem(KEYS.REMEMBER_ME);
+          localStorage.removeItem(KEYS.CURRENT_USER);
+        }
+      } else {
+        if (window.sessionStorage) {
+          sessionStorage.removeItem(KEYS.CURRENT_USER);
+        }
+        localStorage.removeItem(KEYS.REMEMBER_ME);
+        localStorage.removeItem(KEYS.CURRENT_USER);
+      }
+    } catch (e) {
+      console.warn('Session storage operation failed:', e);
+    }
   }
 };
