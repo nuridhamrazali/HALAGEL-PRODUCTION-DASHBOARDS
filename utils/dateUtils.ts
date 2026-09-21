@@ -11,12 +11,17 @@ import { OffDayType } from "../types";
  * Safe for use in <input type="date">
  */
 export const getTodayISO = (): string => {
-  return new Intl.DateTimeFormat('en-CA', {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Kuala_Lumpur',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit'
-  }).format(new Date());
+  });
+  const parts = formatter.formatToParts(new Date());
+  const year = parts.find(p => p.type === 'year')?.value;
+  const month = parts.find(p => p.type === 'month')?.value;
+  const day = parts.find(p => p.type === 'day')?.value;
+  return `${year}-${month}-${day}`;
 };
 
 /**
@@ -28,6 +33,38 @@ export const formatDateToDMY = (dateStr: string): string => {
   const parts = clean.split('-');
   if (parts.length !== 3) return clean;
   return `${parts[2]}-${parts[1]}-${parts[0]}`;
+};
+
+/**
+ * Helper to convert YYYY-MM-DD to DD/MM/YYYY for input/display
+ */
+export const formatDateToDMYSlash = (dateStr: string): string => {
+  if (!dateStr) return '';
+  const clean = dateStr.split(' ')[0].split('T')[0];
+  const parts = clean.split('-');
+  if (parts.length !== 3) return clean;
+  return `${parts[2]}/${parts[1]}/${parts[0]}`;
+};
+
+/**
+ * Parse DD/MM/YYYY or DD-MM-YYYY string to YYYY-MM-DD (ISO)
+ */
+export const parseDMYToISO = (dmyStr: string): string | null => {
+  if (!dmyStr) return null;
+  const clean = dmyStr.trim();
+  const parts = clean.includes('/') ? clean.split('/') : clean.split('-');
+  if (parts.length !== 3) return null;
+  const day = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10);
+  const year = parseInt(parts[2], 10);
+  if (isNaN(day) || isNaN(month) || isNaN(year)) return null;
+  if (month < 1 || month > 12 || day < 1 || day > 31 || year < 1900 || year > 2100) return null;
+
+  const d = new Date(year, month - 1, day);
+  if (d.getFullYear() !== year || d.getMonth() !== month - 1 || d.getDate() !== day) {
+    return null;
+  }
+  return `${year.toString().padStart(4, '0')}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
 };
 
 /**
@@ -51,8 +88,8 @@ export const getWeeklyOffDayType = (dateStr: string): OffDayType | null => {
   if (parts.length !== 3) return null;
   const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
   const day = d.getDay();
-  if (day === 5) return 'Rest Day';
-  if (day === 6) return 'Off Day';
+  if (day === 5) return 'Off Day';
+  if (day === 6) return 'Rest Day';
   return null;
 };
 
