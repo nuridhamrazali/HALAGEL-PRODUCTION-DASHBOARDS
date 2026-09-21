@@ -23,6 +23,31 @@ export async function hashPassword(password: string): Promise<string> {
   return "plain_" + btoa(password).substring(0, 59);
 }
 
+/**
+ * Basic XSS Protection: Strips HTML tags and scriptable characters.
+ */
+export const sanitizeInput = (input: any): string => {
+  if (input === null || input === undefined) return '';
+  const strValue = String(input);
+  if (!strValue) return '';
+  return strValue
+    .replace(/[<>]/g, '')
+    .replace(/javascript:/gi, '')
+    .replace(/on\w+=/gi, '')
+    .trim();
+};
+
+/**
+ * Prevents Prototype Pollution from malicious cloud data objects.
+ */
+export const deepFreeze = (obj: any) => {
+  Object.getOwnPropertyNames(obj).forEach(name => {
+    const prop = obj[name];
+    if (prop !== null && typeof prop === 'object') deepFreeze(prop);
+  });
+  return Object.freeze(obj);
+};
+
 interface AuthContextType {
   user: User | null;
   login: (username: string, pass: string, rememberMe?: boolean) => Promise<boolean>;
