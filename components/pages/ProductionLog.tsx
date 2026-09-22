@@ -7,6 +7,7 @@ import { CATEGORIES, PROCESSES } from '../../constants';
 import { ProductionEntry, ProductionStatus } from '../../types';
 import { Download, Filter, XCircle, Palmtree, MessageSquare, ArrowUpDown, Clock, CheckCircle, Coffee, Ban } from 'lucide-react';
 import { getTodayISO, getWeeklyOffDayType, formatDateToDMY } from '../../utils/dateUtils';
+import { ExcelRemarkPopup, ExcelCellCorner } from '../ui/ExcelRemarkPopup';
 
 type SortConfig = {
     key: keyof ProductionEntry;
@@ -15,7 +16,6 @@ type SortConfig = {
 
 export const ProductionLog: React.FC = () => {
   const { refreshKey } = useDashboard();
-  const { hasPermission } = useAuth();
   const [data, setData] = useState<ProductionEntry[]>([]);
   const [sortConfig, setSortConfig] = useState<SortConfig>(null);
   const offDays = useMemo(() => StorageService.getOffDays(), []);
@@ -90,7 +90,7 @@ export const ProductionLog: React.FC = () => {
     const rows = filteredData.map(d => [
         d.date, d.category, d.process, `"${d.productName}"`, d.planQuantity || 0, d.actualQuantity || 0, d.unit || 'KG',
         calculateEfficiency(d.actualQuantity || 0, d.planQuantity || 0), d.batchNo || '', (d.manpower || 0).toFixed(2), d.status || 'In Progress', 
-        `"${String(d.planRemark || '').replace(/"/g, '""')}"`, `"${String(d.actualRemark || '').replace(/"/g, '""')}"`
+        `"${(d.planRemark || '').replace(/"/g, '""')}"`, `"${(d.actualRemark || '').replace(/"/g, '""')}"`
     ]);
     const filename = `production_log_${getTodayISO()}.csv`;
 
@@ -125,14 +125,12 @@ export const ProductionLog: React.FC = () => {
           <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Detailed operational history</p>
         </div>
         
-        {hasPermission(['admin', 'manager', 'planner']) && (
-          <button 
-            onClick={downloadCSV} 
-            className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-emerald-700 transition shadow-lg shadow-emerald-500/20"
-          >
-            <Download className="w-4 h-4" /> Export Report
-          </button>
-        )}
+        <button 
+          onClick={downloadCSV} 
+          className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-emerald-700 transition shadow-lg shadow-emerald-500/20"
+        >
+          <Download className="w-4 h-4" /> Export Report
+        </button>
       </div>
 
       <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-slate-700 flex flex-wrap gap-6 items-end">
@@ -215,23 +213,33 @@ export const ProductionLog: React.FC = () => {
                        <div className="grid grid-cols-2 gap-4 mb-3 border-t border-b dark:border-slate-700 py-3">
                             <div>
                                 <div className="text-[9px] font-black text-slate-400 uppercase mb-1">Plan Data</div>
-                                <div className="font-black font-mono text-slate-700 dark:text-slate-200 text-sm">{(entry.planQuantity || 0).toLocaleString()} <span className="text-[9px] text-slate-400">{entry.unit || 'KG'}</span></div>
-                                {entry.planRemark && (
-                                    <div className="flex items-center gap-1 mt-1 opacity-60">
-                                        <MessageSquare className="w-2.5 h-2.5 text-indigo-500" />
-                                        <span className="text-[9px] font-medium italic truncate max-w-[100px]">{entry.planRemark}</span>
-                                    </div>
-                                )}
+                                <div className="flex items-center gap-1.5">
+                                    <span className="font-black font-mono text-slate-700 dark:text-slate-200 text-sm">{(entry.planQuantity || 0).toLocaleString()} <span className="text-[9px] text-slate-400">{entry.unit || 'KG'}</span></span>
+                                    {entry.planRemark && (
+                                        <ExcelRemarkPopup 
+                                            remark={entry.planRemark} 
+                                            type="plan" 
+                                            entry={entry} 
+                                            mode="icon" 
+                                            align="left" 
+                                        />
+                                    )}
+                                </div>
                             </div>
                             <div>
                                 <div className="text-[9px] font-black text-slate-400 uppercase mb-1">Actual Data</div>
-                                <div className="font-black font-mono text-emerald-500 text-sm">{(entry.actualQuantity || 0).toLocaleString()} <span className="text-[9px] text-emerald-500/70">{entry.unit || 'KG'}</span></div>
-                                {entry.actualRemark && (
-                                    <div className="flex items-center gap-1 mt-1 opacity-60">
-                                        <MessageSquare className="w-2.5 h-2.5 text-emerald-500" />
-                                        <span className="text-[9px] font-medium italic truncate max-w-[100px]">{entry.actualRemark}</span>
-                                    </div>
-                                )}
+                                <div className="flex items-center gap-1.5">
+                                    <span className="font-black font-mono text-emerald-500 text-sm">{(entry.actualQuantity || 0).toLocaleString()} <span className="text-[9px] text-emerald-500/70">{entry.unit || 'KG'}</span></span>
+                                    {entry.actualRemark && (
+                                        <ExcelRemarkPopup 
+                                            remark={entry.actualRemark} 
+                                            type="actual" 
+                                            entry={entry} 
+                                            mode="icon" 
+                                            align="right" 
+                                        />
+                                    )}
+                                </div>
                             </div>
                        </div>
                        
@@ -300,23 +308,29 @@ export const ProductionLog: React.FC = () => {
                         <div className="font-black text-slate-800 dark:text-white leading-tight mb-1">{entry.productName}</div>
                         <div className="text-[9px] font-black text-indigo-500 dark:text-indigo-400 uppercase tracking-widest">{entry.process}</div>
                     </td>
-                    <td className="px-8 py-6 text-right font-black font-mono text-slate-700 dark:text-slate-200">
+                    <td className="px-8 py-6 text-right font-black font-mono text-slate-700 dark:text-slate-200 relative group/plancell">
+                        {entry.planRemark ? (
+                            <ExcelRemarkPopup 
+                                remark={entry.planRemark} 
+                                type="plan" 
+                                entry={entry} 
+                                mode="corner"
+                                align="right" 
+                            />
+                        ) : null}
                         <div>{(entry.planQuantity || 0).toLocaleString()}</div>
-                        {entry.planRemark && (
-                            <div className="flex items-center justify-end gap-1 mt-1 opacity-60">
-                            <MessageSquare className="w-2.5 h-2.5 text-indigo-500" />
-                            <span className="text-[9px] font-medium italic truncate max-w-[120px]">{entry.planRemark}</span>
-                            </div>
-                        )}
                     </td>
-                    <td className="px-8 py-6 text-right font-black font-mono text-emerald-500">
+                    <td className="px-8 py-6 text-right font-black font-mono text-emerald-500 relative group/actualcell">
+                        {entry.actualRemark ? (
+                            <ExcelRemarkPopup 
+                                remark={entry.actualRemark} 
+                                type="actual" 
+                                entry={entry} 
+                                mode="corner"
+                                align="right" 
+                            />
+                        ) : null}
                         <div>{(entry.actualQuantity || 0).toLocaleString()}</div>
-                        {entry.actualRemark && (
-                            <div className="flex items-center justify-end gap-1 mt-1 opacity-60">
-                            <MessageSquare className="w-2.5 h-2.5 text-emerald-500" />
-                            <span className="text-[9px] font-medium italic truncate max-w-[120px]">{entry.actualRemark}</span>
-                            </div>
-                        )}
                     </td>
                     <td className="px-8 py-6 text-center">
                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{entry.unit || 'KG'}</span>
