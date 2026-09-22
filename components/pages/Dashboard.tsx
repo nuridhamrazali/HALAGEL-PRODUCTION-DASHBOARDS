@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatDisplayDate, getCurrentMonthISO, getWeeklyOffDayType } from '../../utils/dateUtils';
+import { ExcelRemarkPopup, ExcelCellCorner } from '../ui/ExcelRemarkPopup';
 
 type SortConfig = {
     key: keyof ProductionEntry;
@@ -153,7 +154,7 @@ export const Dashboard: React.FC = () => {
             entries: entriesForDate,
             offDay: offDayInfo
         };
-    });
+    }).filter(group => !batchSearch || group.entries.length > 0);
   }, [dashboardData.filteredData, offDays, selectedMonth, sortConfig, batchSearch]);
 
   const handleDelete = async (id: string) => {
@@ -329,7 +330,52 @@ export const Dashboard: React.FC = () => {
                       </div>
 
                       {group.entries.length > 0 && (
-                        <div className="overflow-x-auto no-scrollbar">
+                        <>
+                        {/* Mobile View */}
+                        <div className="md:hidden flex flex-col gap-3 p-4">
+                            {group.entries.map(entry => {
+                                const eff = entry.planQuantity > 0 ? (entry.actualQuantity / entry.planQuantity) * 100 : 0;
+                                return (
+                                    <div key={entry.id} className="p-4 rounded-xl border border-gray-100 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-900/30">
+                                        <div className="flex justify-between items-start mb-2">
+                                            <div className="font-black text-slate-800 dark:text-white text-sm">{entry.productName}</div>
+                                            <span className="text-[9px] font-black text-indigo-600 dark:text-indigo-400 uppercase bg-indigo-50 dark:bg-indigo-900/30 px-2 py-1 rounded-lg border border-indigo-100 dark:border-indigo-800">{entry.process}</span>
+                                        </div>
+                                        
+                                        <div className="grid grid-cols-2 gap-4 mb-3 border-t border-b border-gray-100 dark:border-slate-800 py-3 mt-2">
+                                            <div>
+                                                <div className="text-[9px] font-black text-slate-400 uppercase mb-1">Plan</div>
+                                                <div className="font-black font-mono text-indigo-600/80 dark:text-indigo-400/80 text-sm">{(entry.planQuantity || 0).toLocaleString()} <span className="text-[9px] text-slate-400">{entry.unit || 'KG'}</span></div>
+                                            </div>
+                                            <div>
+                                                <div className="text-[9px] font-black text-slate-400 uppercase mb-1">Actual</div>
+                                                <div className="font-black font-mono text-emerald-500 text-sm">{(entry.actualQuantity || 0).toLocaleString()} <span className="text-[9px] text-emerald-500/70">{entry.unit || 'KG'}</span></div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="flex justify-between items-center text-sm">
+                                            <div>
+                                                <div className="text-[9px] font-black text-slate-400 uppercase mb-0.5">Batch No</div>
+                                                <div className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase font-mono">{entry.batchNo || '-'}</div>
+                                            </div>
+                                            <div className="text-center">
+                                                <div className="text-[9px] font-black text-slate-400 uppercase mb-0.5">Efficiency</div>
+                                                <div className={`font-black font-mono ${eff >= 100 ? 'text-emerald-500' : eff >= 75 ? 'text-amber-500' : 'text-rose-500'}`}>{(eff || 0).toFixed(0)}%</div>
+                                            </div>
+                                            {hasPermission(['admin', 'manager', 'hod', 'planner']) && (
+                                                <div className="flex gap-2">
+                                                    <button onClick={() => handleEdit(entry)} className="p-1.5 text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition"><Pencil className="w-4 h-4" /></button>
+                                                    <button onClick={() => handleDelete(entry.id)} className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition"><Trash2 className="w-4 h-4" /></button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        
+                        {/* Desktop View */}
+                        <div className="hidden md:block overflow-x-auto no-scrollbar">
                             <table className="w-full text-left">
                                 <thead>
                                     <tr className="border-b border-gray-50 dark:border-slate-800 text-[9px] font-black text-slate-400 uppercase tracking-widest bg-gray-50/30 dark:bg-slate-900/30">
@@ -354,13 +400,29 @@ export const Dashboard: React.FC = () => {
                                                 <td className="px-8 py-5">
                                                     <span className="text-sm font-black text-slate-800 dark:text-white uppercase">{entry.productName}</span>
                                                 </td>
-                                                <td className="px-8 py-5 text-right font-black font-mono text-indigo-600/80 dark:text-indigo-400/80 text-sm">
+                                                <td className="px-8 py-5 text-right font-black font-mono text-indigo-600/80 dark:text-indigo-400/80 text-sm relative group/plancell">
+                                                    {entry.planRemark ? (
+                                                        <ExcelRemarkPopup 
+                                                            remark={entry.planRemark} 
+                                                            type="plan" 
+                                                            entry={entry} 
+                                                            mode="corner"
+                                                            align="right" 
+                                                        />
+                                                    ) : null}
                                                     <div>{(entry.planQuantity || 0).toLocaleString()} <span className="text-[9px] ml-1 opacity-60 font-sans">{entry.unit}</span></div>
-                                                    {entry.planRemark && <div className="flex items-center justify-end gap-1 mt-1 opacity-70"><MessageSquare className="w-3 h-3 text-slate-300" /><span className="text-[9px] font-medium text-slate-400 italic max-w-[150px] truncate">{entry.planRemark}</span></div>}
                                                 </td>
-                                                <td className="px-8 py-5 text-right font-black font-mono text-emerald-500 text-sm">
+                                                <td className="px-8 py-5 text-right font-black font-mono text-emerald-500 text-sm relative group/actualcell">
+                                                    {entry.actualRemark ? (
+                                                        <ExcelRemarkPopup 
+                                                            remark={entry.actualRemark} 
+                                                            type="actual" 
+                                                            entry={entry} 
+                                                            mode="corner"
+                                                            align="right" 
+                                                        />
+                                                    ) : null}
                                                     <div>{(entry.actualQuantity || 0).toLocaleString()} <span className="text-[9px] ml-1 opacity-60 font-sans">{entry.unit}</span></div>
-                                                    {entry.actualRemark && <div className="flex items-center justify-end gap-1 mt-1 opacity-60"><MessageSquare className="w-3 h-3 text-emerald-200" /><span className="text-[9px] font-medium text-emerald-400/80 italic max-w-[150px] truncate">{entry.actualRemark}</span></div>}
                                                 </td>
                                                 <td className="px-8 py-5 text-center">
                                                     <span className={`text-sm font-black font-mono ${eff >= 100 ? 'text-emerald-500' : eff >= 75 ? 'text-amber-500' : 'text-rose-500'}`}>{(eff || 0).toFixed(0)}%</span>
@@ -385,6 +447,7 @@ export const Dashboard: React.FC = () => {
                                 </tbody>
                             </table>
                         </div>
+                        </>
                       )}
                   </div>
                 );
