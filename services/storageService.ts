@@ -4,7 +4,7 @@
 import { User, ProductionEntry, OffDay, ActivityLog, UnitType, ProductionStatus } from '../types';
 import { INITIAL_USERS, INITIAL_OFF_DAYS, UNITS } from '../constants';
 import { GoogleSheetsService } from './googleSheetsService';
-import { getDbTimestamp } from '../utils/dateUtils';
+import { getDbTimestamp, normalizeToISODate } from '../utils/dateUtils';
 
 const KEYS = {
   USERS: 'halagel_users',
@@ -14,7 +14,8 @@ const KEYS = {
   CURRENT_USER: 'halagel_current_user_session',
   REMEMBER_ME: 'halagel_remember_session',
   LAST_WRITE: 'halagel_last_write_timestamp',
-  DELETED_IDS: 'halagel_deleted_ids'
+  DELETED_IDS: 'halagel_deleted_ids',
+  BACKUP_LATEST: 'halagel_production_backup_latest'
 };
 
 const getDeletedIds = (): string[] => {
@@ -25,9 +26,21 @@ const addDeletedId = (id: string) => {
   const ids = getDeletedIds();
   if (!ids.includes(String(id))) {
     ids.push(String(id));
-    if (ids.length > 2000) ids.shift(); // Keep max 2000 tombstones
+    if (ids.length > 500) ids.shift();
     localStorage.setItem(KEYS.DELETED_IDS, JSON.stringify(ids));
   }
+};
+
+const saveLocalBackup = (entries: ProductionEntry[]) => {
+  try {
+    if (Array.isArray(entries) && entries.length > 0) {
+      localStorage.setItem(KEYS.BACKUP_LATEST, JSON.stringify({
+        timestamp: new Date().toISOString(),
+        count: entries.length,
+        data: entries
+      }));
+    }
+  } catch {}
 };
 
 const normalizeUnit = (u: any): UnitType => {
@@ -42,16 +55,24 @@ const normalizeProduction = (data: any): ProductionEntry => {
   let entry: Partial<ProductionEntry> = {};
   if (Array.isArray(data)) {
     const actualQty = Number(data[6] || 0);
+    const rawDate = String(data[1] || '').trim();
+    const isoDate = normalizeToISODate(rawDate);
+    const category = String(data[2] || 'Healthcare');
+    const process = String(data[3] || 'Mixing');
+    const productName = String(data[4] || 'Unknown');
+    const batchNo = String(data[8] || '');
+    const fallbackId = `${isoDate}_${category}_${process}_${productName}_${batchNo}`.replace(/[\s/:]+/g, '_');
+
     entry = {
-      id: String(data[0] || Date.now()),
-      date: String(data[1] || '').split(' ')[0],
-      category: String(data[2] || 'Healthcare') as any,
-      process: String(data[3] || 'Mixing') as any,
-      productName: String(data[4] || 'Unknown'),
+      id: String(data[0] || fallbackId),
+      date: isoDate,
+      category: category as any,
+      process: process as any,
+      productName,
       planQuantity: Number(data[5] || 0),
       actualQuantity: actualQty,
       unit: normalizeUnit(data[7]),
-      batchNo: String(data[8] || ''),
+      batchNo,
       manpower: Number(data[9] || 0),
       lastUpdatedBy: String(data[10] || ''),
       updatedAt: String(data[11] || getDbTimestamp()),
@@ -61,12 +82,22 @@ const normalizeProduction = (data: any): ProductionEntry => {
       status: (data[15] as ProductionStatus) || (actualQty > 0 ? 'Completed' : 'In Progress')
     };
   } else {
+    const rawDate = String(data.date || '').trim();
+    const isoDate = normalizeToISODate(rawDate);
+    const category = String(data.category || 'Healthcare');
+    const process = String(data.process || 'Mixing');
+    const productName = String(data.productName || '');
+    const batchNo = String(data.batchNo || '');
+    const fallbackId = `${isoDate}_${category}_${process}_${productName}_${batchNo}`.replace(/[\s/:]+/g, '_');
+
     entry = {
       ...data,
-      id: String(data.id || Date.now()),
-      date: String(data.date || '').split(' ')[0],
-      productName: String(data.productName || ''),
-      batchNo: String(data.batchNo || ''),
+      id: String(data.id || fallbackId),
+      date: isoDate,
+      category: category as any,
+      process: process as any,
+      productName,
+      batchNo,
       planQuantity: Number(data.planQuantity || 0),
       actualQuantity: Number(data.actualQuantity || 0),
       unit: normalizeUnit(data.unit),
@@ -98,31 +129,44 @@ const isWriteLocked = () => {
 /**
  * RECONCILIATION LOGIC
  * Correctly merges cloud data with local data by comparing updatedAt via lexicographical string comparison.
- * Uses explicit tombstone matching to solve the 'Ghost Data' problem.
+ * Uses explicit tombstone matching to solve the 'Ghost Data' problem and strictly prevents duplicate IDs.
  */
 const reconcileData = <T extends { id: string, updatedAt?: string }>(local: T[], cloud: T[], deletedIds: string[]): T[] => {
   const cloudMap = new Map<string, T>();
-  cloud.forEach(item => cloudMap.set(String(item.id), item));
+  cloud.forEach(item => {
+    if (item && item.id) cloudMap.set(String(item.id), item);
+  });
 
   const now = Date.now();
+  const seenIds = new Set<string>();
   const result: T[] = [];
+
+  const addItem = (item: T) => {
+    if (!item || !item.id) return;
+    const key = String(item.id);
+    if (seenIds.has(key)) return;
+    seenIds.add(key);
+    result.push(item);
+  };
 
   // 1. Process all Cloud items (They are the source of truth for existing data)
   cloud.forEach(cloudItem => {
+    if (!cloudItem || !cloudItem.id) return;
     // If explicitly deleted on this device but not yet synced securely, omit it
     if (deletedIds.includes(String(cloudItem.id))) return;
 
-    const localItem = local.find(l => String(l.id) === String(cloudItem.id));
+    const localItem = local.find(l => l && String(l.id) === String(cloudItem.id));
     // If local was updated more recently, keep local
     if (localItem && localItem.updatedAt && cloudItem.updatedAt && String(localItem.updatedAt) > String(cloudItem.updatedAt)) {
-      result.push(localItem);
+      addItem(localItem);
     } else {
-      result.push(cloudItem);
+      addItem(cloudItem);
     }
   });
 
   // 2. Handle Local-Only items (Potential New items OR Deleted-In-Cloud items)
   local.forEach(localItem => {
+    if (!localItem || !localItem.id) return;
     if (!cloudMap.has(String(localItem.id))) {
       // Don't resurrect deleted things
       if (deletedIds.includes(String(localItem.id))) return;
@@ -136,11 +180,11 @@ const reconcileData = <T extends { id: string, updatedAt?: string }>(local: T[],
         // Keep local items if created recently (< 24 hrs) and not synced yet.
         // Gives wide berth for slow syncs, but ignores cloud-deleted items after 24H.
         if (ageInHours < 24) {
-          result.push(localItem);
+          addItem(localItem);
         }
       } else {
         // Fallback: If ID is not a timestamp, keep it to be safe (e.g. static data)
-        result.push(localItem);
+        addItem(localItem);
       }
     }
   });
@@ -172,7 +216,6 @@ const reconcileUsers = (local: User[], cloud: User[]): User[] => {
   });
 
   // 2. Only keep local users if they are not in the cloud AND were created offline on this device in the last 15 minutes
-  // (Prevents resurrecting accounts that were deleted in the cloud by an admin on another device)
   const now = Date.now();
   local.forEach(l => {
     if (!l.username) return;
@@ -195,9 +238,59 @@ const reconcileUsers = (local: User[], cloud: User[]): User[] => {
 };
 
 /**
+ * DEDUPLICATION LOGIC FOR PRODUCTION ENTRIES
+ * Removes duplicate production entries by unique ID or matching content signature
+ * (date + category + process + productName + batchNo), preserving the latest updated entry.
+ */
+export const deduplicateProductionEntries = (entries: ProductionEntry[]): ProductionEntry[] => {
+  if (!Array.isArray(entries)) return [];
+  const byId = new Map<string, ProductionEntry>();
+  const byContent = new Map<string, ProductionEntry>();
+
+  for (const item of entries) {
+    if (!item || !item.date) continue;
+    const clean = normalizeProduction(item);
+    const id = String(clean.id).trim();
+
+    // Content signature: date + category + process + productName + batchNo
+    const contentKey = `${clean.date}:::${clean.category}:::${clean.process}:::${clean.productName.trim().toLowerCase()}:::${(clean.batchNo || '').trim().toLowerCase()}`;
+
+    // Check if duplicate by ID
+    const existingById = byId.get(id);
+    if (existingById) {
+      if (String(clean.updatedAt || '') >= String(existingById.updatedAt || '')) {
+        byId.set(id, clean);
+        byContent.set(contentKey, clean);
+      }
+      continue;
+    }
+
+    // Check if duplicate by Content Signature (catches duplicate items created with different IDs)
+    const existingByContent = byContent.get(contentKey);
+    if (existingByContent) {
+      const cleanTime = String(clean.updatedAt || '');
+      const existingTime = String(existingByContent.updatedAt || '');
+      // Prefer newer update or completed entry
+      if (cleanTime > existingTime || (clean.actualQuantity > 0 && existingByContent.actualQuantity === 0)) {
+        byId.delete(String(existingByContent.id));
+        byId.set(id, clean);
+        byContent.set(contentKey, clean);
+      }
+      continue;
+    }
+
+    byId.set(id, clean);
+    byContent.set(contentKey, clean);
+  }
+
+  // Sort descending by date (newest first)
+  return Array.from(byId.values()).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+};
+
+/**
  * DEDUPLICATION LOGIC FOR ACTIVITY LOGS
  * Removes duplicate log entries by unique ID or matching content signature
- * (timestamp + action + user + details), sorting newest first.
+ * (normalized timestamp + action + user + details), sorting newest first.
  */
 export const deduplicateLogs = (logs: any[]): ActivityLog[] => {
   if (!Array.isArray(logs)) return [];
@@ -208,37 +301,43 @@ export const deduplicateLogs = (logs: any[]): ActivityLog[] => {
   for (const item of logs) {
     if (!item) continue;
     
-    const id = String(item.id || '').trim();
+    let id = String(item.id || '').trim();
     const userId = String(item.userId || '').trim();
     const userName = String(item.userName || '').trim();
     const action = String(item.action || '').trim().toUpperCase();
     const details = String(item.details || '').trim();
     const timestamp = String(item.timestamp || '').trim();
 
-    const log: ActivityLog = {
-      id: id || `${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+    const userKey = (userName || userId).toLowerCase();
+    // Normalize timestamp (e.g. YYYYMMDDHHmmss) to eliminate formatting differences across cloud/local
+    const normTime = timestamp.replace(/[^\d]/g, '').slice(0, 14);
+    const signature = `${normTime}:::${action}:::${userKey}:::${details.toLowerCase()}`;
+
+    // Deterministic fallback ID
+    if (!id) {
+      id = `log_${normTime || Date.now()}_${userKey}_${action.slice(0, 4)}`;
+    }
+
+    const idKey = `ID:::${id}`;
+
+    if (seenIds.has(idKey)) {
+      continue;
+    }
+    if (normTime && seenSignatures.has(signature)) {
+      continue;
+    }
+
+    seenIds.add(idKey);
+    if (normTime) seenSignatures.add(signature);
+
+    result.push({
+      id,
       userId,
       userName: userName || userId || 'System',
       action,
       details,
       timestamp
-    };
-
-    const userKey = (userName || userId).toLowerCase();
-    // Normalize timestamp (e.g., removing any extra whitespace)
-    const signature = `${timestamp}:::${action}:::${userKey}:::${details}`;
-    const idKey = log.id ? `ID:::${log.id}` : null;
-
-    if (idKey && seenIds.has(idKey)) {
-      continue;
-    }
-    if (seenSignatures.has(signature)) {
-      continue;
-    }
-
-    if (idKey) seenIds.add(idKey);
-    seenSignatures.add(signature);
-    result.push(log);
+    });
   }
 
   // Sort descending by timestamp (newest first)
@@ -352,36 +451,53 @@ export const StorageService = {
   getProductionData: (): ProductionEntry[] => {
     try {
       const data = JSON.parse(localStorage.getItem(KEYS.PRODUCTION) || '[]');
-      return Array.isArray(data) ? data.map(normalizeProduction).filter(p => p.date) : [];
+      if (!Array.isArray(data)) return [];
+      const clean = deduplicateProductionEntries(data);
+      if (clean.length !== data.length) {
+        localStorage.setItem(KEYS.PRODUCTION, JSON.stringify(clean));
+      }
+      return clean;
     } catch { return []; }
   },
   
   saveProductionData: async (data: ProductionEntry[]) => {
     setWriteLock();
-    // Detect deletes
-    const currentList = StorageService.getProductionData();
-    currentList.forEach(curr => {
-      if (!data.some(u => String(u.id) === String(curr.id))) addDeletedId(String(curr.id));
-    });
 
-    const cleaned = data.map(normalizeProduction).filter(p => p.date);
+    const cleaned = deduplicateProductionEntries(data.map(normalizeProduction).filter(p => p.date));
     localStorage.setItem(KEYS.PRODUCTION, JSON.stringify(cleaned));
+    saveLocalBackup(cleaned);
 
     // Fetch before save merging - fixes concurrent missing inputs bug
     if (GoogleSheetsService.isEnabled()) {
       try {
         const cloudRaw = await GoogleSheetsService.fetchData<any[]>('getProduction');
-        if (cloudRaw && Array.isArray(cloudRaw)) {
+        if (cloudRaw && Array.isArray(cloudRaw) && cloudRaw.length > 0) {
           const cloudData = cloudRaw.map(normalizeProduction);
-          const merged = reconcileData(cleaned, cloudData, getDeletedIds());
+          const merged = deduplicateProductionEntries(reconcileData(cleaned, cloudData, getDeletedIds()));
+
+          // SAFETY GUARD: Never allow a smaller local submission to truncate a larger cloud database!
+          if (merged.length < cloudData.length) {
+            console.warn("Safety Guard Active: Merged records count is less than existing cloud records. Cloud overwrite aborted to prevent data loss.");
+            // Keep whatever local additions we have, but do not truncate the cloud spreadsheet
+            return true;
+          }
+
           localStorage.setItem(KEYS.PRODUCTION, JSON.stringify(merged));
+          saveLocalBackup(merged);
           return await GoogleSheetsService.saveData('saveProduction', merged);
+        } else if (cloudRaw && Array.isArray(cloudRaw) && cloudRaw.length === 0 && cleaned.length > 0) {
+          // Cloud was empty, safe to initialize
+          return await GoogleSheetsService.saveData('saveProduction', cleaned);
         }
       } catch (err) {
         console.warn("Fetch before save failed:", err?.toString() || 'Network failure');
       }
+
+      // If cloud was temporarily unreachable, DO NOT overwrite cloud with partial local data!
+      // Local changes are safely stored in localStorage and rolling backup.
+      return true;
     }
-    return await GoogleSheetsService.saveData('saveProduction', cleaned);
+    return true;
   },
 
   deleteProductionEntry: async (id: string): Promise<{ updatedData: ProductionEntry[], deletedItem: ProductionEntry | null }> => {
@@ -419,11 +535,6 @@ export const StorageService = {
   
   saveOffDays: async (days: OffDay[]) => {
     setWriteLock();
-    const currentList = StorageService.getOffDays();
-    currentList.forEach(curr => {
-      if (!days.some(u => String(u.id) === String(curr.id))) addDeletedId(String(curr.id));
-    });
-
     localStorage.setItem(KEYS.OFF_DAYS, JSON.stringify(days));
 
     if (GoogleSheetsService.isEnabled()) {
@@ -437,6 +548,47 @@ export const StorageService = {
       } catch {}
     }
     return await GoogleSheetsService.saveData('saveOffDays', days);
+  },
+
+  forceSyncWithSheets: async () => {
+    if (!GoogleSheetsService.isEnabled()) return;
+    try {
+      localStorage.removeItem(KEYS.DELETED_IDS);
+      const cloudRaw = await GoogleSheetsService.fetchData<any[]>('getProduction');
+      if (cloudRaw && Array.isArray(cloudRaw)) {
+        const cloudProduction = cloudRaw.map(normalizeProduction);
+        const clean = deduplicateProductionEntries(cloudProduction);
+        localStorage.setItem(KEYS.PRODUCTION, JSON.stringify(clean));
+        saveLocalBackup(clean);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('halagel-data-updated'));
+        }
+      }
+      await StorageService.syncWithSheets();
+    } catch (e) {
+      console.warn("Force sync error:", e);
+    }
+  },
+
+  getLocalBackup: () => {
+    try {
+      const raw = localStorage.getItem(KEYS.BACKUP_LATEST);
+      return raw ? JSON.parse(raw) : null;
+    } catch { return null; }
+  },
+
+  restoreFromBackup: () => {
+    try {
+      const backup = StorageService.getLocalBackup();
+      if (backup && Array.isArray(backup.data) && backup.data.length > 0) {
+        localStorage.setItem(KEYS.PRODUCTION, JSON.stringify(backup.data));
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('halagel-data-updated'));
+        }
+        return true;
+      }
+    } catch {}
+    return false;
   },
 
   syncWithSheets: async () => {
@@ -454,8 +606,9 @@ export const StorageService = {
       if (results[0] && Array.isArray(results[0])) {
         const cloudProduction = results[0].map(normalizeProduction);
         const localProduction = StorageService.getProductionData();
-        const merged = reconcileData(localProduction, cloudProduction, getDeletedIds());
+        const merged = deduplicateProductionEntries(reconcileData(localProduction, cloudProduction, getDeletedIds()));
         localStorage.setItem(KEYS.PRODUCTION, JSON.stringify(merged));
+        saveLocalBackup(merged);
       }
       
       if (results[2] && Array.isArray(results[2]) && results[2].length > 0) {
