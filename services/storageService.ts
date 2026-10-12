@@ -4,7 +4,7 @@
 import { User, ProductionEntry, OffDay, ActivityLog, UnitType, ProductionStatus } from '../types';
 import { INITIAL_USERS, INITIAL_OFF_DAYS, UNITS } from '../constants';
 import { GoogleSheetsService } from './googleSheetsService';
-import { getDbTimestamp, normalizeToISODate } from '../utils/dateUtils';
+import { getDbTimestamp } from '../utils/dateUtils';
 
 const KEYS = {
   USERS: 'halagel_users',
@@ -48,6 +48,29 @@ const normalizeUnit = (u: any): UnitType => {
   const upper = String(u).trim().toUpperCase();
   const validUnits = UNITS as unknown as string[];
   return validUnits.includes(upper) ? (upper as UnitType) : 'KG';
+};
+
+/**
+ * Normalizes any date string (DD/MM/YYYY, MM/DD/YYYY, DD-MM-YYYY, or YYYY-MM-DD) to ISO YYYY-MM-DD
+ */
+const normalizeToISODate = (dateStr: string): string => {
+  if (!dateStr) return '';
+  const clean = String(dateStr).trim().split(' ')[0].split('T')[0];
+  if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) return clean;
+  const parts = clean.includes('/') ? clean.split('/') : clean.split('-');
+  if (parts.length === 3) {
+    if (parts[0].length === 4) {
+      return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+    }
+    const p0 = parseInt(parts[0], 10);
+    const p1 = parseInt(parts[1], 10);
+    const year = parts[2].length === 2 ? `20${parts[2]}` : parts[2];
+    if (p1 > 12 && p0 <= 12) {
+      return `${year}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`;
+    }
+    return `${year}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+  }
+  return clean;
 };
 
 const normalizeProduction = (data: any): ProductionEntry => {
