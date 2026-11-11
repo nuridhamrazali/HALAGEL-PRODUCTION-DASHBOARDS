@@ -53,6 +53,7 @@ interface AuthContextType {
   login: (username: string, pass: string, rememberMe?: boolean) => Promise<boolean>;
   logout: () => void;
   hasPermission: (roles: Role[]) => boolean;
+  canOperatePlan: boolean;
   loginAttempts: number;
 }
 
@@ -222,8 +223,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return allowedRoles.includes(user.role);
   };
 
+  // Only Planner, Manager, and Admin can operate production plan data
+  const canOperatePlan = !!user && (user.role === 'admin' || user.role === 'manager' || user.role === 'planner' || (user.role as string) === 'hod');
+
   return (
-    <AuthContext.Provider value={{ user, login, logout, hasPermission, loginAttempts }}>
+    <AuthContext.Provider value={{ user, login, logout, hasPermission, canOperatePlan, loginAttempts }}>
       {children}
     </AuthContext.Provider>
   );
