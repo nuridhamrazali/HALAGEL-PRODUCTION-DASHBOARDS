@@ -7,6 +7,7 @@ import { CATEGORIES, PROCESSES, UNITS } from '../../constants';
 import { ProductionEntry, Category, ProcessType, UnitType, ProductionStatus, OffDay } from '../../types';
 import { X, Loader2, Palmtree, MessageSquare, Ban, AlertCircle, Building2 } from 'lucide-react';
 import { getTodayISO, getDbTimestamp, getWeeklyOffDayType } from '../../utils/dateUtils';
+import { DatePicker } from '../ui/DatePicker';
 
 interface InputModalProps {
   onClose: () => void;
@@ -34,7 +35,7 @@ export const InputModal: React.FC<InputModalProps> = ({ onClose, editEntry }) =>
   const [selectedPlanId, setSelectedPlanId] = useState<string>('');
 
   const canEditActual = hasPermission(['admin', 'manager', 'operator']);
-  const canEditPlan = hasPermission(['admin', 'manager', 'planner']);
+  const canEditPlan = hasPermission(['admin', 'planner']);
 
   const offDays = useMemo(() => StorageService.getOffDays(), []);
   
@@ -86,16 +87,16 @@ export const InputModal: React.FC<InputModalProps> = ({ onClose, editEntry }) =>
       setProductName(editEntry.productName);
       setUnit(editEntry.unit || 'KG');
       
-      // If user is a planner, always default to Plan tab regardless of production progress
+      // If user is a planner or admin, they can view/edit Plan tab; otherwise default to Actual
       if (user?.role === 'planner') {
         setTab('Plan');
         setQuantity(editEntry.planQuantity.toString());
-      } else if (editEntry.actualQuantity > 0) {
+      } else if (editEntry.actualQuantity > 0 || !canEditPlan) {
         setTab('Actual');
         setQuantity(editEntry.actualQuantity.toString());
       } else {
-        setTab('Plan');
-        setQuantity(editEntry.planQuantity.toString());
+        setTab(canEditPlan ? 'Plan' : 'Actual');
+        setQuantity(canEditPlan ? editEntry.planQuantity.toString() : (editEntry.actualQuantity ? editEntry.actualQuantity.toString() : ''));
       }
       
       setManpower(editEntry.manpower ? Number(editEntry.manpower).toFixed(2) : '0.00');
@@ -103,10 +104,10 @@ export const InputModal: React.FC<InputModalProps> = ({ onClose, editEntry }) =>
       setPlanRemark(editEntry.planRemark || '');
       setActualRemark(editEntry.actualRemark || '');
     } else {
-      if (user?.role === 'operator') setTab('Actual');
-      else if (user?.role === 'planner' || user?.role === 'manager' || user?.role === 'admin') setTab('Plan');
+      if (canEditPlan) setTab('Plan');
+      else setTab('Actual');
     }
-  }, [editEntry, user]);
+  }, [editEntry, user, canEditPlan]);
 
   useEffect(() => {
     if (tab === 'Actual' && !editEntry) {
@@ -161,6 +162,13 @@ export const InputModal: React.FC<InputModalProps> = ({ onClose, editEntry }) =>
             });
         } else {
             if (tab === 'Plan') {
+                if (!canEditPlan) {
+                    window.dispatchEvent(new CustomEvent('app-notification', { 
+                        detail: { message: 'Access denied: Only Planners and Admins can create plan data.', type: 'info' } 
+                    }));
+                    setIsSubmitting(false);
+                    return;
+                }
                 const newEntry: ProductionEntry = {
                     id: Date.now().toString(),
                     date: normalizedDate, 
@@ -228,7 +236,7 @@ export const InputModal: React.FC<InputModalProps> = ({ onClose, editEntry }) =>
             <button 
                 onClick={() => setTab('Plan')} 
                 className={`flex-1 py-4 font-black text-[11px] uppercase tracking-widest text-center transition border-b-2 ${tab === 'Plan' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-400 hover:text-slate-600'} ${!canEditPlan && !editEntry ? 'hidden' : ''}`}>
-                {editEntry ? 'Plan Details' : '1. Production Plan'}
+                {editEntry ? (canEditPlan ? 'Plan Details' : 'Plan Details (Read Only)') : '1. Production Plan'}
             </button>
             <button 
                 onClick={() => setTab('Actual')} 
@@ -242,12 +250,11 @@ export const InputModal: React.FC<InputModalProps> = ({ onClose, editEntry }) =>
             
             <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Production Date</label>
-                    <input 
-                      type="date" 
+                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Production Date (DD/MM/YYYY)</label>
+                    <DatePicker 
                       required 
                       value={date} 
-                      onChange={e => setDate(e.target.value)} 
+                      onChange={setDate} 
                       className={inputClasses} 
                       disabled={!!editEntry && !canEditPlan}
                     />
@@ -279,6 +286,12 @@ export const InputModal: React.FC<InputModalProps> = ({ onClose, editEntry }) =>
 
                 {tab === 'Plan' ? (
                     <>
+                        {!canEditPlan && (
+                          <div className="p-3.5 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl flex items-center gap-2.5 text-amber-700 dark:text-amber-300 text-xs font-bold mb-4">
+                            <AlertCircle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                            <span>Plan targets are read-only. Only Planner and Admin roles can create or modify plan data.</span>
+                          </div>
+                        )}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Category</label>
@@ -447,12 +460,12 @@ export const InputModal: React.FC<InputModalProps> = ({ onClose, editEntry }) =>
 
                 <button 
                     type="submit" 
-                    disabled={isSubmitting || (tab === 'Actual' && !selectedPlanId && !editEntry) || (!!editEntry && tab === 'Actual' && !canEditActual) || (!!editEntry && tab === 'Plan' && !canEditPlan)} 
+                    disabled={isSubmitting || (tab === 'Actual' && !selectedPlanId && !editEntry) || (!!editEntry && tab === 'Actual' && !canEditActual) || (tab === 'Plan' && !canEditPlan)} 
                     className={`w-full py-4 rounded-xl font-black text-xs uppercase tracking-[0.2em] text-white mt-4 shadow-xl transition hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed ${
                         tab === 'Plan' ? 'bg-slate-900 dark:bg-indigo-600' : 'bg-emerald-600'
                     }`}
                 >
-                    {isSubmitting ? 'Syncing...' : (tab === 'Actual' ? 'Submit & Mark Completed' : 'Save Plan Entry')}
+                    {isSubmitting ? 'Syncing...' : (tab === 'Actual' ? 'Submit & Mark Completed' : (canEditPlan ? 'Save Plan Entry' : 'Plan Locked (Planner/Admin Only)'))}
                 </button>
             </form>
         </div>
