@@ -1,12 +1,15 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { CATEGORIES, PROCESSES, UNITS } from '../../constants';
 import { StorageService } from '../../services/storageService';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { ProductionEntry, Category, ProcessType, UnitType } from '../../types';
-import { AlertCircle, CheckCircle2, Palmtree, MessageSquare } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Palmtree, MessageSquare, Lock, ShieldAlert, ArrowRight, ClipboardCheck } from 'lucide-react';
 import { getTodayISO, getWeeklyOffDayType } from '../../utils/dateUtils';
+import { DatePicker } from '../ui/DatePicker';
+import { playSubmitButtonSound, playSuccessSound } from '../../utils/soundEffects';
 
 interface PlanFormState {
   date: string;
@@ -19,7 +22,7 @@ interface PlanFormState {
 }
 
 export const InputPlan: React.FC = () => {
-  const { user } = useAuth();
+  const { user, canOperatePlan } = useAuth();
   const { triggerRefresh } = useDashboard();
   
   const [formData, setFormData] = useState<PlanFormState>({
@@ -72,8 +75,13 @@ export const InputPlan: React.FC = () => {
     }
   }, [availableProcesses, formData.process]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!canOperatePlan) {
+      setMsg({ type: 'error', text: 'Access denied: Only Planner, Manager, and Administrator can operate plan data.' });
+      return;
+    }
 
     if (!formData.productName || !formData.quantity) {
       setMsg({ type: 'error', text: 'Please fill all required fields.' });
@@ -98,8 +106,8 @@ export const InputPlan: React.FC = () => {
         updatedAt: new Date().toISOString()
       };
 
-      StorageService.saveProductionData([...entries, newEntry]);
-      StorageService.addLog({
+      await StorageService.saveProductionData([...entries, newEntry]);
+      await StorageService.addLog({
         userId: user!.id,
         userName: user!.name,
         action: 'CREATE_PLAN',
@@ -109,6 +117,7 @@ export const InputPlan: React.FC = () => {
       triggerRefresh();
       setMsg({ type: 'success', text: 'Plan entry added successfully.' });
       setFormData(prev => ({ ...prev, productName: '', quantity: '', planRemark: '' }));
+      playSuccessSound();
       
       window.dispatchEvent(new CustomEvent('app-notification', { 
         detail: { message: 'PRODUCTION PLAN SUBMITTED', type: 'success' } 
@@ -117,6 +126,42 @@ export const InputPlan: React.FC = () => {
       setMsg({ type: 'error', text: 'Failed to save data.' });
     }
   };
+
+  if (!canOperatePlan) {
+    return (
+      <div className="max-w-2xl mx-auto py-12 px-4">
+        <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl border border-rose-100 dark:border-rose-900/30 p-8 sm:p-12 text-center animate-in fade-in zoom-in-95">
+          <div className="w-20 h-20 bg-rose-50 dark:bg-rose-900/20 rounded-3xl mx-auto flex items-center justify-center mb-6 border border-rose-200 dark:border-rose-800/50 shadow-inner">
+            <ShieldAlert className="w-10 h-10 text-rose-500" />
+          </div>
+          <span className="px-3 py-1 bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400 text-[10px] font-black uppercase tracking-widest rounded-full">
+            Role Permission Required
+          </span>
+          <h2 className="text-2xl sm:text-3xl font-black text-slate-800 dark:text-white mt-4 tracking-tight">
+            Plan Operations Restricted
+          </h2>
+          <p className="text-sm font-semibold text-slate-500 dark:text-slate-400 mt-3 max-w-md mx-auto leading-relaxed">
+            Only <strong className="text-indigo-600 dark:text-indigo-400">Planner</strong>, <strong className="text-indigo-600 dark:text-indigo-400">Manager</strong>, and <strong className="text-indigo-600 dark:text-indigo-400">Administrator</strong> roles have authorization to initialize or operate production plans.
+          </p>
+
+          <div className="mt-8 pt-8 border-t border-slate-100 dark:border-slate-700/60 flex flex-col sm:flex-row gap-4 justify-center">
+            <Link
+              to="/actual"
+              className="px-6 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-widest rounded-2xl shadow-lg shadow-emerald-600/20 transition flex items-center justify-center gap-2"
+            >
+              <ClipboardCheck className="w-4 h-4" /> Go to Record Actual
+            </Link>
+            <Link
+              to="/"
+              className="px-6 py-3.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-black text-xs uppercase tracking-widest rounded-2xl transition flex items-center justify-center gap-2"
+            >
+              Dashboard <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-2xl mx-auto py-8">
@@ -141,13 +186,12 @@ export const InputPlan: React.FC = () => {
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2 ml-1">Production Date</label>
-              <input 
-                type="date" 
+              <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2 ml-1">Production Date (DD/MM/YYYY)</label>
+              <DatePicker 
                 required
                 className="w-full p-3.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white font-bold outline-none focus:ring-2 focus:ring-indigo-500/20"
                 value={formData.date}
-                onChange={e => setFormData({...formData, date: e.target.value})}
+                onChange={val => setFormData({...formData, date: val})}
               />
               
               {currentOffDay && (
@@ -231,7 +275,8 @@ export const InputPlan: React.FC = () => {
           <div className="pt-6">
             <button 
               type="submit"
-              className="w-full bg-slate-900 dark:bg-indigo-600 text-white font-black py-4 rounded-2xl hover:opacity-90 transition-all shadow-xl shadow-indigo-500/10 uppercase tracking-[0.2em] text-sm"
+              onPointerDown={() => playSubmitButtonSound()}
+              className="w-full bg-slate-900 dark:bg-indigo-600 text-white font-black py-4 rounded-2xl hover:opacity-90 transition-all shadow-xl shadow-indigo-500/10 uppercase tracking-[0.2em] text-sm cursor-pointer"
             >
               Secure Plan Entry
             </button>
