@@ -5,7 +5,7 @@ import { useDashboard } from '../../contexts/DashboardContext';
 import { StorageService } from '../../services/storageService';
 import { CATEGORIES, PROCESSES, UNITS } from '../../constants';
 import { ProductionEntry, Category, ProcessType, UnitType, ProductionStatus, OffDay } from '../../types';
-import { X, Loader2, Palmtree, MessageSquare, Ban, AlertCircle, Building2 } from 'lucide-react';
+import { X, Loader2, MessageSquare, Ban, AlertCircle } from 'lucide-react';
 import { getTodayISO, getDbTimestamp, getWeeklyOffDayType } from '../../utils/dateUtils';
 import { DatePicker } from '../ui/DatePicker';
 
