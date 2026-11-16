@@ -16,6 +16,7 @@ export default defineConfig({
         theme_color: '#4f46e5',
         background_color: '#f8fafc',
         display: 'standalone',
+        orientation: 'landscape',
         icons: [
           {
             src: 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="%234f46e5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Cpath d="M2 20V9l4-2 4 2V4l4-2 4 2v16H2Z"/%3E%3Cpath d="M6 17h1"/%3E%3Cpath d="M6 13h1"/%3E%3Cpath d="M10 17h1"/%3E%3Cpath d="M10 13h1"/%3E%3Cpath d="M14 17h1"/%3E%3Cpath d="M14 13h1"/%3E%3Cpath d="M18 17h1"/%3E%3Cpath d="M18 13h1"/%3E%3Cpath d="M18 9h1"/%3E%3Cpath d="M18 5h1"/%3E%3C/svg%3E',
