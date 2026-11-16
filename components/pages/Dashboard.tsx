@@ -2,16 +2,16 @@
 import React, { useMemo, useState } from 'react';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { StorageService } from '../../services/storageService';
-import { ProductionEntry, OffDay, ProductionStatus, OffDayType } from '../../types';
+import { ProductionEntry, ProductionStatus } from '../../types';
 import { PROCESSES } from '../../constants';
 import { 
   ClipboardList, List, Calendar, 
-  Download, Pencil, Trash2, Layers,
-  Palmtree, MessageSquare, ArrowUpDown, Coffee, Ban
+  Pencil, Trash2, Layers,
+  Palmtree, ArrowUpDown, Coffee, Ban
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatDisplayDate, getCurrentMonthISO, getWeeklyOffDayType } from '../../utils/dateUtils';
-import { ExcelRemarkPopup, ExcelCellCorner } from '../ui/ExcelRemarkPopup';
+import { ExcelRemarkPopup } from '../ui/ExcelRemarkPopup';
 
 type SortConfig = {
     key: keyof ProductionEntry;
