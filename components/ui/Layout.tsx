@@ -8,19 +8,16 @@ import { LoginModal } from '../modals/LoginModal';
 import { InputModal } from '../modals/InputModal';
 import { OffDayModal } from '../modals/OffDayModal';
 import { ChangePasswordModal } from '../modals/ChangePasswordModal';
-import { DesktopShortcutModal } from '../modals/DesktopShortcutModal';
 import { GoogleSheetsService } from '../../services/googleSheetsService';
 import { StorageService } from '../../services/storageService';
 import { Link, useLocation } from 'react-router-dom';
-import { PwaInstallButton } from './PwaInstallButton';
 import { UpdateAnnouncementPopup } from './UpdateAnnouncementPopup';
 import { 
   Menu, X, Moon, Sun, Plus, LogOut, Database,
   CalendarX, LayoutDashboard, RefreshCw, LogIn, CheckCircle, Info,
-  ClipboardList, Users, History, Key, BarChart3, Calendar, Monitor,
-  Sparkles, Volume2, VolumeX
+  ClipboardList, Users, History, Key, BarChart3, Calendar,
+  Sparkles
 } from 'lucide-react';
-import { isSoundEnabled, toggleSound, playSuccessSound } from '../../utils/soundEffects';
 
 /**
  * LOGO CONFIGURATION
@@ -33,7 +30,7 @@ const LOGO_BASE64 = `data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAWIAAACOCAYAA
 
 export const Layout: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { user, logout, hasPermission } = useAuth();
-  const { category, setCategory, isDarkMode, toggleDarkMode, refreshKey, triggerRefresh } = useDashboard();
+  const { category, setCategory, isDarkMode, toggleDarkMode, triggerRefresh } = useDashboard();
   const location = useLocation();
   
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -41,28 +38,12 @@ export const Layout: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [showInput, setShowInput] = useState(false);
   const [showOffDays, setShowOffDays] = useState(false);
   const [showChangePass, setShowChangePass] = useState(false);
-  const [showShortcutModal, setShowShortcutModal] = useState(false);
   const [showUpdatePopup, setShowUpdatePopup] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [entryToEdit, setEntryToEdit] = useState<ProductionEntry | null>(null);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'info' } | null>(null);
-  const [soundActive, setSoundActive] = useState<boolean>(() => isSoundEnabled());
 
   const timeoutRef = useRef<number | null>(null);
-
-  const handleToggleSound = () => {
-    const newState = toggleSound();
-    setSoundActive(newState);
-    if (newState) {
-      playSuccessSound();
-    }
-    window.dispatchEvent(new CustomEvent('app-notification', { 
-      detail: { 
-        message: newState ? 'AUDIO FEEDBACK ENABLED' : 'AUDIO FEEDBACK MUTED', 
-        type: 'info' 
-      } 
-    }));
-  };
 
   const handleNotify = useCallback((e: any) => {
     if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
@@ -99,15 +80,11 @@ export const Layout: React.FC<{ children: ReactNode }> = ({ children }) => {
     
     if (!silent) setIsSyncing(true);
     try {
-      if (!silent) {
-        await StorageService.forceSyncWithSheets();
-      } else {
-        await StorageService.syncWithSheets();
-      }
+      await StorageService.syncWithSheets();
       triggerRefresh();
       if (!silent) {
         window.dispatchEvent(new CustomEvent('app-notification', { 
-          detail: { message: 'Cloud database synchronized!', type: 'success' } 
+          detail: { message: 'Cloud data synchronized!', type: 'success' } 
         }));
       }
     } catch (e) {
@@ -254,14 +231,6 @@ export const Layout: React.FC<{ children: ReactNode }> = ({ children }) => {
               <Link to="/logs" onClick={() => setIsMobileMenuOpen(false)} className={navItemClass('/logs')}>
                 <History className="w-4 h-4" /> Logs
               </Link>
-
-              <div className="pt-4 px-3 py-1 text-[9px] font-black text-slate-400 uppercase tracking-widest">Shortcut & Mobile</div>
-              <button 
-                onClick={() => { setShowShortcutModal(true); setIsMobileMenuOpen(false); }} 
-                className="w-full flex items-center gap-3 px-4 py-2 text-sm font-bold text-slate-500 hover:bg-gray-50 dark:hover:bg-slate-800 rounded-xl transition"
-              >
-                <Monitor className="w-4 h-4 text-indigo-500" /> Shortcut Guide
-              </button>
             </>
           )}
           
@@ -305,24 +274,8 @@ export const Layout: React.FC<{ children: ReactNode }> = ({ children }) => {
               <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 absolute -top-0.5 -right-0.5 animate-ping" />
             </button>
 
-            <button 
-              onClick={() => setShowShortcutModal(true)} 
-              title="Desktop & Mobile Shortcut Guide (No PWA)" 
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-xl transition border border-slate-200 dark:border-slate-700 shrink-0"
-            >
-              <Monitor className="w-4 h-4 text-indigo-500 shrink-0" />
-              <span className="hidden sm:inline text-[10px] font-black uppercase tracking-wider">Shortcut</span>
-            </button>
-
             <button onClick={() => handleSync()} disabled={isSyncing} title="Sync with Cloud" className={`p-2 text-slate-500 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-xl transition ${isSyncing ? 'animate-spin text-indigo-500' : ''}`}>
               <RefreshCw className="w-4 h-4 sm:w-5 sm:h-5" />
-            </button>
-            <button 
-              onClick={handleToggleSound} 
-              title={soundActive ? "Mute Sound Effects" : "Enable Sound Effects"} 
-              className={`p-2 rounded-xl transition ${soundActive ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100' : 'text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800'}`}
-            >
-              {soundActive ? <Volume2 className="w-4 h-4 sm:w-5 sm:h-5" /> : <VolumeX className="w-4 h-4 sm:w-5 sm:h-5" />}
             </button>
             <button onClick={toggleDarkMode} title="Toggle Dark Mode" className="p-2 text-slate-500 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-xl transition">
               {isDarkMode ? <Sun className="w-4 h-4 sm:w-5 sm:h-5" /> : <Moon className="w-4 h-4 sm:w-5 sm:h-5" />}
@@ -434,7 +387,6 @@ export const Layout: React.FC<{ children: ReactNode }> = ({ children }) => {
       {showInput && <InputModal onClose={() => { setShowInput(false); setEntryToEdit(null); }} editEntry={entryToEdit} />}
       {showOffDays && <OffDayModal onClose={() => setShowOffDays(false)} />}
       {showChangePass && <ChangePasswordModal onClose={() => setShowChangePass(false)} />}
-      {showShortcutModal && <DesktopShortcutModal onClose={() => setShowShortcutModal(false)} />}
       {showUpdatePopup && (
         <UpdateAnnouncementPopup 
           durationSeconds={10} 
