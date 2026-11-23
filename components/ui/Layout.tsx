@@ -163,7 +163,7 @@ export const Layout: React.FC<{ children: ReactNode }> = ({ children }) => {
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40 md:hidden" onClick={() => setIsMobileMenuOpen(false)} />
       )}
 
-      <aside className={`fixed inset-y-0 left-0 w-72 bg-white dark:bg-slate-850 border-r border-gray-200 dark:border-slate-700 z-50 transform transition-transform duration-300 md:translate-x-0 md:static md:block flex flex-col h-full ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside className={`fixed inset-y-0 left-0 w-72 bg-white dark:bg-slate-850 border-r border-gray-200 dark:border-slate-700 z-50 transform transition-transform duration-300 md:translate-x-0 md:sticky md:top-0 md:h-screen md:self-start md:flex shrink-0 flex flex-col h-full ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         {/* Sidebar Header */}
         <div className="p-6 flex flex-col items-center justify-center border-b border-gray-100 dark:border-slate-800 shrink-0">
            <div className="w-48 text-center">
@@ -240,8 +240,8 @@ export const Layout: React.FC<{ children: ReactNode }> = ({ children }) => {
         </nav>
       </aside>
 
-      <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
-        <header className="h-16 bg-white dark:bg-slate-850 border-b border-gray-200 dark:border-slate-700 flex items-center justify-between px-3 sm:px-6 shrink-0 z-20">
+      <main className="flex-1 flex flex-col min-w-0 overflow-x-clip relative">
+        <header className="sticky top-0 h-16 bg-white dark:bg-slate-850 border-b border-gray-200 dark:border-slate-700 flex items-center justify-between px-3 sm:px-6 shrink-0 z-20">
           <div className="flex items-center gap-2 sm:gap-4">
             <button onClick={() => setIsMobileMenuOpen(true)} className="md:hidden p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg">
               <Menu className="w-6 h-6 text-slate-600 dark:text-slate-300" />
