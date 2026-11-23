@@ -45,7 +45,7 @@ A role-based manufacturing production planning, tracking, and analytics web appl
 | **Admin** | Yes | Yes | Yes | Yes | Yes |
 | **Planner** | Yes | Yes | No | Yes | No |
 | **Manager** | Yes | No | Yes | Yes | No |
-| **HOD** | Yes | No | No *(can edit/delete entries on dashboard)* | No | No |
+| **HOD** | Yes | No | Yes | No | No |
 | **Operator** | Yes | No | Yes | No | No |
 
 > **Note:** Contact your system administrator to obtain your login credentials. You can update your password anytime from the top header bar after signing in.
